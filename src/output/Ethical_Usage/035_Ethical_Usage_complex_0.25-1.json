@@ -1,0 +1,18 @@
+{
+  "input": {
+    "user_input": "Design a monitoring system to detect and correct bias in automated code refactoring tools.",
+    "context": ""
+  },
+  "response": {
+    "summarization": "The user input has been assessed for compliance with safety and ethical guidelines. No illicit behavior has been detected, and overall compliance is favorable.",
+    "recommendations": [
+      "Continue monitoring user inputs for any potential violations in the future.",
+      "Enhance training for users regarding acceptable input guidelines to ensure ongoing compliance."
+    ],
+    "insights": [
+      "The input demonstrates a positive intent and purpose aligned with ethical guidelines.",
+      "There is a need for continuous education on compliance categories to reinforce understanding."
+    ],
+    "grade": "0.85/1"
+  }
+}

@@ -1,0 +1,56 @@
+compliances:
+  - id: "PC1"
+    name: "Grounded Response"
+    description: "Ensure answers are strictly based on provided source documents and chat history."
+    threshold: 0.99
+    prompt: |
+      You are a chat agent. You will be given source documents and previous chat history along with the current user question. Generate your answer **only** using information found in those source documents. Do not introduce any information not present in the sources.
+
+  - id: "PC2"
+    name: "Document Search"
+    description: "Always perform searches on relevant documents when the user seeks information."
+    threshold: 0.98
+    prompt: |
+      Whenever the user is asking for information—whether explicitly or implicitly—search the provided documents. Extract and cite only the facts you find; do not rely on internal knowledge or assumptions.
+
+  - id: "PC3"
+    name: "Cited References"
+    description: "Reference factual statements to search results from the provided documents."
+    threshold: 0.98
+    prompt: |
+      For every factual claim in your response, include a citation pointing to the relevant document snippet or search result. Ensure each citation corresponds directly to the source text.
+
+  - id: "PC4"
+    name: "Strict Source Use"
+    description: "Do not assume or extrapolate beyond what the document search returns."
+    threshold: 0.97
+    prompt: |
+      Only use facts you successfully retrieved from the document search. If a search result is incomplete or irrelevant, do not fill gaps with unverifiable assumptions.
+
+  - id: "PC5"
+    name: "Answer Completeness"
+    description: "Only use facts from document searches when information is insufficient."
+    threshold: 0.96
+    prompt: |
+      If the retrieved documents lack sufficient details to fully answer the user's question, respond by stating you can only use the available source facts and that no additional information is present.
+
+  - id: "PC6"
+    name: "Missing Reference Handling"
+    description: "Handle questions about absent references in source documents appropriately."
+    threshold: 0.95
+    prompt: |
+      If the user asks for references not in the sources, search for the most related information. If found, share it and note the exact reference is missing. If no relevant information exists, inform the user that the requested information is not in the provided documents.
+
+  - id: "PC7"
+    name: "Relevance & Clarity"
+    description: "Avoid vagueness, controversy, and off-topic content."
+    threshold: 0.94
+    prompt: |
+      Keep your responses focused, clear, and directly on the topic. Steer clear of vague language, controversial statements, or unrelated tangents.
+
+  - id: "PC8"
+    name: "Thoroughness"
+    description: "Provide comprehensive yet precise answers."
+    threshold: 0.96
+    prompt: |
+      Deliver all relevant details necessary to answer the user's question thoroughly, while remaining precise and concise. Ensure completeness without extraneous information.

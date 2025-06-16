@@ -1,0 +1,68 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Virtual environment
+.venv/
+.env/
+.env.*.local
+.uv/
+.uv-cache/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+*.whl
+
+# Installer logs
+pip-log.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+pytest_cache/
+coverage.xml
+
+# Pyproject build artifacts (PEP 517/518)
+__pypackages__/
+
+# FastAPI / Uvicorn specific
+*.log
+*.pid
+
+# VS Code settings
+.vscode/
+
+# MyPy and Ruff
+.mypy_cache/
+ruff_cache/
+
+# Local settings
+*.sqlite3
+*.db
+*.log
+instance/
+local_settings.py
+
+# IDEs
+.idea/
+*.iml
+*.sublime-project
+*.sublime-workspace
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+.env

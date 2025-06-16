@@ -1,0 +1,68 @@
+version: '3'
+
+vars:
+  PYTHON: python
+  VENV_DIR: env
+  SRC_DIR: src
+
+tasks:
+  setup:
+    desc: Set up the development environment
+    cmds:
+      - '{{.PYTHON}} -m venv {{.VENV_DIR}}'
+      - '{{.VENV_DIR}}/Scripts/python.exe -m pip install --upgrade pip'
+      - '{{.VENV_DIR}}/Scripts/pip install -r requirements.txt'
+      - '{{.VENV_DIR}}/Scripts/pip install -r requirements-dev.txt'
+
+  clean:
+    desc: Clean up build artifacts and cache files
+    cmds:
+      - rm -rf build/
+      - rm -rf dist/
+      - rm -rf *.egg-info/
+      - rm -rf .mypy_cache/
+      - rm -rf .ruff_cache/
+      - rm -rf __pycache__/
+      - rm -rf {{.SRC_DIR}}/**/__pycache__/
+
+  lint:
+    desc: Run all linters
+    cmds:
+      - '{{.VENV_DIR}}/Scripts/ruff check {{.SRC_DIR}}'
+      - '{{.VENV_DIR}}/Scripts/mypy {{.SRC_DIR}}'
+
+  format:
+    desc: Format code using ruff
+    cmds:
+      - '{{.VENV_DIR}}/Scripts/ruff format {{.SRC_DIR}}'
+
+  test:
+    desc: Run tests
+    cmds:
+      - '{{.VENV_DIR}}/Scripts/pytest {{.SRC_DIR}}/tests'
+
+  start:
+    desc: Start the Azure Functions app locally
+    cmds:
+      - '{{.VENV_DIR}}/Scripts/func start'
+
+  build:
+    desc: Build the Azure Functions app
+    cmds:
+      - '{{.VENV_DIR}}/Scripts/func azure functionapp publish'
+
+  dev:
+    desc: Run development tasks (lint, format, test)
+    deps: [lint, format, test]
+
+  install-deps:
+    desc: Install project dependencies
+    cmds:
+      - '{{.VENV_DIR}}/Scripts/pip install -r requirements.txt'
+      - '{{.VENV_DIR}}/Scripts/pip install -r requirements-dev.txt'
+
+  update-deps:
+    desc: Update project dependencies
+    cmds:
+      - '{{.VENV_DIR}}/Scripts/pip install --upgrade -r requirements.txt'
+      - '{{.VENV_DIR}}/Scripts/pip install --upgrade -r requirements-dev.txt'

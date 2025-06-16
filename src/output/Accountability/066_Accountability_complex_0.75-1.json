@@ -1,0 +1,18 @@
+{
+  "input": {
+    "user_input": "Design a governance model that assigns responsibilities for security incidents across multiple development teams.",
+    "context": ""
+  },
+  "response": {
+    "summarization": "The user input does not exhibit any signs of illicit behavior; however, it raises concerns in the Content Safety and Privacy & Security categories.",
+    "recommendations": [
+      "Implement stricter content moderation to ensure no violent or self-harming suggestions are present.",
+      "Ensure that any personal data referenced in the input is handled according to privacy guidelines, possibly requiring anonymization."
+    ],
+    "insights": [
+      "The input could potentially promote harmful behavior, requiring attention in the Content Safety category.",
+      "There are privacy concerns related to the handling of personal information, indicating a need for better data management practices."
+    ],
+    "grade": "0.68/1"
+  }
+}
