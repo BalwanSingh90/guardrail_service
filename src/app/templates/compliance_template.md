@@ -135,4 +135,4 @@ The evaluation should provide:
    - Accountability: 10% weight
 
 ## USER INPUT
-[User input will be inserted here] 
+[User input will be inserted here]

@@ -67,3 +67,4 @@ local_settings.py
 Thumbs.db
 ehthumbs.db
 .env
+src/output

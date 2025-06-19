@@ -17,6 +17,7 @@ from ..core.logging import get_logger
 # Get logger for this module
 logger = get_logger(__name__)
 
+
 class AzureConfig(BaseModel):
     """
     Configuration model for Azure service connections.
@@ -32,8 +33,8 @@ class AzureConfig(BaseModel):
     """
 
     endpoint: AnyUrl  # Base URL for Azure service endpoint
-    api_key: str      # Authentication key for API access
-    deployment: str   # Deployment identifier
+    api_key: str  # Authentication key for API access
+    deployment: str  # Deployment identifier
     api_version: str  # API version to use
 
     @validator("endpoint", pre=True, always=True)
@@ -60,6 +61,7 @@ class AzureConfig(BaseModel):
 
     class Config:
         """Pydantic model configuration."""
+
         # Allow extra fields to be present in the input data
         extra = "allow"
         # Enable validation of assignment

@@ -23,6 +23,7 @@ logger = get_logger(__name__)
 # Initialize settings
 settings = Settings()
 
+
 class RequestLogger:
     """
     A class for logging request-specific data in JSON format.
@@ -67,7 +68,7 @@ class RequestLogger:
         self.log_data: dict[str, Any] = {
             "request_id": request_id,
             "timestamp": datetime.now().isoformat(),
-            "stages": []
+            "stages": [],
         }
 
         # Create initial log file
@@ -92,7 +93,7 @@ class RequestLogger:
         entry = {
             "stage": stage_name,
             "timestamp": datetime.utcnow().isoformat(),
-            "data": data
+            "data": data,
         }
 
         self.log_data["stages"].append(entry)

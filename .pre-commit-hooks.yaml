@@ -1,0 +1,5 @@
+- id: custom-guardrail-check
+  name: Guardrail Linter
+  entry: scripts/guardrail_lint.py
+  language: python
+  types: [python]

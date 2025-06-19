@@ -25,39 +25,33 @@ OUTPUT_PATTERNS: Dict[str, Pattern] = {
     # Extracts the problem section
     "problem": re.compile(
         r"###\s*Problem\s*:?[\r\n]+([\s\S]*?)(?=###\s*Why It Failed\s*:|$)",
-        re.MULTILINE
+        re.MULTILINE,
     ),
-
     # Extracts the why it failed section
     "why_it_failed": re.compile(
         r"###\s*Why It Failed\s*:?[\r\n]+([\s\S]*?)(?=###\s*What To Fix\s*:|$)",
-        re.MULTILINE
+        re.MULTILINE,
     ),
-
     # Extracts what to fix section
     "what_to_fix": re.compile(
         r"###\s*What To Fix\s*:?[\r\n]+([\s\S]*?)(?=###\s*Prompt Rephrase\s*:|$)",
-        re.MULTILINE
+        re.MULTILINE,
     ),
-
     # Extracts prompt rephrase suggestion
     "rephrase_prompt": re.compile(
         r"###\s*Prompt Rephrase\s*:?[\r\n]+([\s\S]*?)(?=###\s*Compliance ID and Name\s*:|$)",
-        re.MULTILINE
+        re.MULTILINE,
     ),
-
     # Extracts compliance ID and name
     "compliance_id_and_name": re.compile(
-        r"###\s*Compliance ID and Name\s*:?[\r\n]+([\s\S]*?)$",
-        re.MULTILINE
+        r"###\s*Compliance ID and Name\s*:?[\r\n]+([\s\S]*?)$", re.MULTILINE
     ),
-
     # Extracts the grade (optional but supported)
     "grade": re.compile(
-        r"###\s*Grade\s*:?[\r\n]*`?([0-9]*\.?[0-9]+/1)`?",
-        re.MULTILINE
-    )
+        r"###\s*Grade\s*:?[\r\n]*`?([0-9]*\.?[0-9]+/1)`?", re.MULTILINE
+    ),
 }
+
 
 def validate_patterns() -> None:
     """
@@ -77,6 +71,7 @@ def validate_patterns() -> None:
         except Exception as e:
             logger.error(f"Error validating pattern '{pattern_name}': {e!s}")
             raise
+
 
 # Validate patterns when module is imported
 try:

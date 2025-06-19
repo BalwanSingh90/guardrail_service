@@ -1,7 +1,7 @@
 ## Aggregator Template  (v2)
 
 ## Task
-You are a *prompt-remediation expert*.  
+You are a *prompt-remediation expert*.
 Rewrite a user’s **original prompt** so that it passes *all* compliance checks.
 
 ### INPUTS  – *do **not** edit these*
@@ -36,7 +36,3 @@ Rewrite a user’s **original prompt** so that it passes *all* compliance checks
 {{
   "Rephrase Prompt": "<final, fully-compliant prompt text>"
 }}
-
-
-
-

@@ -86,6 +86,6 @@ The Customer Copyright Commitment (CCC) is a provision in the Microsoft Product 
 - Async filtering enabled with logs retained.
 
 ## Chain-of-Thought (COT) Prompt Techniques
-- **Step-by-Step Reasoning**: Prefix tasks with “Let’s think through the compliance requirements step by step:”.  
-- **Intermediate Outputs**: Ask the model to list interim mitigation checks before final output.  
-- **Self-critique**: Include “Review your plan and identify any missing safeguards before confirming compliance.”  
+- **Step-by-Step Reasoning**: Prefix tasks with “Let’s think through the compliance requirements step by step:”.
+- **Intermediate Outputs**: Ask the model to list interim mitigation checks before final output.
+- **Self-critique**: Include “Review your plan and identify any missing safeguards before confirming compliance.”

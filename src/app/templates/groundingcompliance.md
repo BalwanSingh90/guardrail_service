@@ -1,6 +1,6 @@
 Grounding Compliance Template
 Task
-Build a Retrieval-Augmented Generation (RAG) workflow using Azure AI Search as the retriever and Azure OpenAI for response generation 
+Build a Retrieval-Augmented Generation (RAG) workflow using Azure AI Search as the retriever and Azure OpenAI for response generation
 Microsoft Learn
 Microsoft Learn
 .
@@ -24,15 +24,15 @@ Edit
   ]
 }
 Definition
-Retriever Integration: Azure AI Search supplies context via vector or keyword queries 
+Retriever Integration: Azure AI Search supplies context via vector or keyword queries
 Microsoft Learn
 .
 
-System Messages: Enforce strict reliance on retrieved sources, avoiding external or assumed information 
+System Messages: Enforce strict reliance on retrieved sources, avoiding external or assumed information
 Microsoft Learn
 .
 
-Fallback Logic: If the retriever returns no results, respond with a “not found in source documents” message 
+Fallback Logic: If the retriever returns no results, respond with a “not found in source documents” message
 Microsoft Learn
 .
 
@@ -46,4 +46,3 @@ Constructs system + user messages with retrieved content.
 Calls the Azure OpenAI chat API and returns grounded answers.
 
 Handles no-result cases per policy.
-

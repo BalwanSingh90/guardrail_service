@@ -29,6 +29,7 @@ class _Cfg(TypedDict):
     top_p: float
     max_tokens: int
 
+
 cfg: _Cfg = {
     "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT", ""),
     "azure_key": os.getenv("AZURE_OPENAI_KEY", ""),
@@ -45,19 +46,24 @@ openai_client = openai.AzureOpenAI(
     api_version=cfg["azure_version"],
 )
 
+
 # ──────────────── TypedDict state ───────────
 class InputState(TypedDict):
     user_input: str
     documents: list[str]
 
+
 class RenderedState(InputState):
     rendered_prompt: str
+
 
 class CalledState(RenderedState):
     raw_output: str
 
+
 class OutputState(TypedDict):
     graph_output: Any
+
 
 # ─────────────── Template helpers ───────────
 TEMPLATE = """## Task
@@ -90,10 +96,10 @@ Your goal is to identify **violations**, explain **why** they failed, suggest **
 - If facts are missing, assume no information and **do not extrapolate**.
 - Follow the output format **exactly**. Do **not** output anything else.
 
-**Compliant-by-default rule**  
+**Compliant-by-default rule**
 If the user input:
-1. Explicitly directs the assistant to rely solely on the provided documentation **and**  
-2. Explicitly forbids unauthorized actions (modifications, network operations, licensing changes, etc.),  
+1. Explicitly directs the assistant to rely solely on the provided documentation **and**
+2. Explicitly forbids unauthorized actions (modifications, network operations, licensing changes, etc.),
 
 then the prompt is **fully compliant**. In that case set **severity = 0.00**, Grade = 1.00, Result = Passed.
 
@@ -109,7 +115,7 @@ then the prompt is **fully compliant**. In that case set **severity = 0.00**, Gr
 | Medium | 0.66  | Omits or contradicts a key requirement.   |
 | High   | 1.00  | Explicitly requests disallowed actions.   |
 
-Grade = **1 – severity** (round to two decimals).  
+Grade = **1 – severity** (round to two decimals).
 If Grade ≥ Threshold → **Passed**, else → **Failed**.
 
 If severity = High **and** Grade < Threshold, refuse with Grade `0.00/1` and provide a brief refusal rationale.
@@ -132,8 +138,8 @@ If severity = High **and** Grade < Threshold, refuse with Grade `0.00/1` and pro
 `{{id}}` – {{name}}
 
 ### Grade
-Score: `x.xx/1`  
-Threshold: `{threshold}`  
+Score: `x.xx/1`
+Threshold: `{threshold}`
 Result: Passed / Failed
 """
 
@@ -143,27 +149,26 @@ def docs_block(docs: List[str]) -> str:
         return "No documents provided"
     return "\n---\n".join(docs)
 
+
 # ───────────────────── Nodes ─────────────────
+
 
 def render_node(state: InputState) -> RenderedState:
     vars = {
-    "user_input": "Provide a one-sentence summary of `encrypt_data`.",
-    "document_context": "```python\ndef encrypt_data(...): ...\n```",
-    "compliance_prompt": "Generate your answer only using the provided docs.",
-    "compliance_name": "Grounded Response",
-    "compliance_description": (
-        "- Ensure answers are strictly based on provided source documents\n"
-        "- No extrapolation beyond those documents"
-    ),
-    "threshold": 0.99,
-}
+        "user_input": "Provide a one-sentence summary of `encrypt_data`.",
+        "document_context": "```python\ndef encrypt_data(...): ...\n```",
+        "compliance_prompt": "Generate your answer only using the provided docs.",
+        "compliance_name": "Grounded Response",
+        "compliance_description": (
+            "- Ensure answers are strictly based on provided source documents\n"
+            "- No extrapolation beyond those documents"
+        ),
+        "threshold": 0.99,
+    }
 
     # 2.  Render the template
     rendered_prompt = TEMPLATE.format(**vars)
-    return {
-        **state,
-        "rendered_prompt": rendered_prompt
-    }
+    return {**state, "rendered_prompt": rendered_prompt}
 
 
 def call_node(state: RenderedState) -> CalledState:
@@ -184,15 +189,20 @@ def call_node(state: RenderedState) -> CalledState:
 def parse_node(state: CalledState) -> OutputState:
     text = state["raw_output"]
     print(text)
+
     def grab(h):
         m = re.search(rf"###\s*{h}[^\n]*\n(.*?)(?=\n###|$)", text, re.S)
-        return (m.group(1).strip() if m else "")
-    return {"graph_output": {
-        "problem": grab("Problem"),
-        "why_it_failed": grab("Why It Failed"),
-        "what_to_fix": grab("What To Fix"),
-        "grade": grab("Grade"),
-    }}
+        return m.group(1).strip() if m else ""
+
+    return {
+        "graph_output": {
+            "problem": grab("Problem"),
+            "why_it_failed": grab("Why It Failed"),
+            "explain": grab("What To Fix"),
+            "grade": grab("Grade"),
+        }
+    }
+
 
 # ─────────────── Build the graph ────────────
 builder = StateGraph(OutputState, input=InputState, output=OutputState)
@@ -211,12 +221,14 @@ graph = builder.compile()
 # ─────────────── CLI entry point ────────────
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python compliance_agent.py \"<prompt>\"")
+        print('Usage: python compliance_agent.py "<prompt>"')
         sys.exit(1)
 
-    result = graph.invoke({
-        "user_input": sys.argv[1],
-        "documents": [],
-    })
+    result = graph.invoke(
+        {
+            "user_input": sys.argv[1],
+            "documents": [],
+        }
+    )
     json.dump(result, sys.stdout, indent=2)
     print()

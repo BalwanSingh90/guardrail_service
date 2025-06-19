@@ -22,7 +22,9 @@ import requests
 # Path to the CSV of test cases (defaults to our restructured location)
 INPUT_CSV = os.getenv(
     "TEST_CSV",
-    str(Path.cwd() / "assets" / "data" / "Compliance_Test_Cases__SDLC___Networking_.csv")
+    str(
+        Path.cwd() / "assets" / "data" / "Compliance_Test_Cases__SDLC___Networking_.csv"
+    ),
 )
 
 # Base output directory (we will place individual JSONs under src/output/)

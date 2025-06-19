@@ -1,18 +1,18 @@
 Copyright Compliance Template
 Task
-Implement the Customer Copyright Commitment (CCC) required mitigations to maintain IP indemnity 
+Implement the Customer Copyright Commitment (CCC) required mitigations to maintain IP indemnity
 Microsoft Learn
 .
 
-Embed a system metaprompt instructing “do not output verbatim copyrighted material” 
+Embed a system metaprompt instructing “do not output verbatim copyrighted material”
 Microsoft Learn
 .
 
-Enforce protected-material detection filters in filter or annotate mode 
+Enforce protected-material detection filters in filter or annotate mode
 Microsoft Learn
 .
 
-Retain results of guided red-teaming and systematic measurement tests for audits 
+Retain results of guided red-teaming and systematic measurement tests for audits
 Microsoft Learn
 .
 
@@ -31,19 +31,19 @@ Edit
   ]
 }
 Definition
-Metaprompt Insertion: System-level instruction to avoid verbatim reproduction 
+Metaprompt Insertion: System-level instruction to avoid verbatim reproduction
 Microsoft Learn
 .
 
-Protected-Material Filters: Azure filters block or annotate copyrighted content 
+Protected-Material Filters: Azure filters block or annotate copyrighted content
 Microsoft Learn
 .
 
-Audit Reports: Documentation of red-team and systematic tests evidences compliance 
+Audit Reports: Documentation of red-team and systematic tests evidences compliance
 Microsoft Learn
 .
 
-CCC Indemnity: Microsoft defends customers if these mitigations are in place 
+CCC Indemnity: Microsoft defends customers if these mitigations are in place
 The Official Microsoft Blog
 Techstrong.ai
 .
@@ -58,4 +58,3 @@ Runs and archives red-team/systematic tests.
 Generates an audit bundle (prompts, filter logs, test reports).
 
 Produces a compliance summary report for legal review.
-

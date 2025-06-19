@@ -28,15 +28,18 @@ settings = Settings()
 # Get evaluation paths from settings
 paths = settings.get_evaluation_paths()
 
+
 @dataclass
 class EvaluationMetrics:
     """Data class to hold evaluation metrics for a single test case."""
+
     case_id: str
     grade_error: float
     summarization_match: bool
     concern_match: bool
     mitigation_match: bool
     overall_pass: bool
+
 
 def load_test_cases() -> Dict[str, Dict[str, Any]]:
     """
@@ -83,6 +86,7 @@ def load_test_cases() -> Dict[str, Dict[str, Any]]:
         logger.error(f"Error loading test cases: {e!s}")
         raise
 
+
 def parse_grade(grade_str: str) -> float:
     """
     Parse a grade string into a float value.
@@ -101,10 +105,9 @@ def parse_grade(grade_str: str) -> float:
     except (IndexError, ValueError) as e:
         raise ValueError(f"Invalid grade format: {grade_str}") from e
 
+
 def evaluate_response(
-    case_id: str,
-    ground_truth: Dict[str, Any],
-    response: Dict[str, Any]
+    case_id: str, ground_truth: Dict[str, Any], response: Dict[str, Any]
 ) -> EvaluationMetrics:
     """
     Evaluate a single response against its ground truth.
@@ -128,24 +131,21 @@ def evaluate_response(
 
         # Compute matches
         summarization_match = (
-            ground_truth["summarization"].strip() ==
-            response["summarization"].strip()
+            ground_truth["summarization"].strip() == response["summarization"].strip()
         )
-        concern_match = (
-            ground_truth["critical_compliance_concern"] ==
-            response.get("critical_compliance_concern", "")
+        concern_match = ground_truth["critical_compliance_concern"] == response.get(
+            "critical_compliance_concern", ""
         )
-        mitigation_match = (
-            ground_truth["required_mitigation"] ==
-            response.get("required_mitigation", "")
+        mitigation_match = ground_truth["required_mitigation"] == response.get(
+            "required_mitigation", ""
         )
 
         # Determine overall pass using configured tolerance
         overall_pass = (
-            summarization_match and
-            abs(grade_error) < settings.evaluation_grade_tolerance and
-            concern_match and
-            mitigation_match
+            summarization_match
+            and abs(grade_error) < settings.evaluation_grade_tolerance
+            and concern_match
+            and mitigation_match
         )
 
         return EvaluationMetrics(
@@ -154,12 +154,13 @@ def evaluate_response(
             summarization_match=summarization_match,
             concern_match=concern_match,
             mitigation_match=mitigation_match,
-            overall_pass=overall_pass
+            overall_pass=overall_pass,
         )
 
     except Exception as e:
         logger.error(f"Error evaluating response for case {case_id}: {e!s}")
         raise ValueError(f"Invalid response data for case {case_id}") from e
+
 
 def save_evaluation_metrics(metrics: EvaluationMetrics) -> None:
     """
@@ -177,6 +178,7 @@ def save_evaluation_metrics(metrics: EvaluationMetrics) -> None:
         logger.error(f"Error saving metrics for case {metrics.case_id}: {e!s}")
         raise
 
+
 def compute_summary_metrics(metrics_list: List[EvaluationMetrics]) -> Dict[str, Any]:
     """
     Compute summary metrics from individual evaluation results.
@@ -192,14 +194,18 @@ def compute_summary_metrics(metrics_list: List[EvaluationMetrics]) -> Dict[str, 
             "total_tests": len(metrics_list),
             "pass_rate": sum(m.overall_pass for m in metrics_list) / len(metrics_list),
             "avg_grade_error": mean(m.grade_error for m in metrics_list),
-            "summarization_match_rate": sum(m.summarization_match for m in metrics_list) / len(metrics_list),
-            "concern_match_rate": sum(m.concern_match for m in metrics_list) / len(metrics_list),
-            "mitigation_match_rate": sum(m.mitigation_match for m in metrics_list) / len(metrics_list),
-            "grade_tolerance": settings.evaluation_grade_tolerance
+            "summarization_match_rate": sum(m.summarization_match for m in metrics_list)
+            / len(metrics_list),
+            "concern_match_rate": sum(m.concern_match for m in metrics_list)
+            / len(metrics_list),
+            "mitigation_match_rate": sum(m.mitigation_match for m in metrics_list)
+            / len(metrics_list),
+            "grade_tolerance": settings.evaluation_grade_tolerance,
         }
     except Exception as e:
         logger.error(f"Error computing summary metrics: {e!s}")
         raise
+
 
 def main() -> None:
     """Main evaluation process."""
@@ -227,7 +233,7 @@ def main() -> None:
                 metrics = evaluate_response(
                     case_id=case_id,
                     ground_truth=test_cases[case_id]["ground_truth"],
-                    response=data["response"]
+                    response=data["response"],
                 )
 
                 # Save individual metrics
@@ -254,6 +260,7 @@ def main() -> None:
     except Exception as e:
         logger.error(f"Evaluation process failed: {e!s}", exc_info=True)
         raise
+
 
 if __name__ == "__main__":
     main()

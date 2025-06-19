@@ -60,4 +60,4 @@ inline-quotes = "single"
 known-first-party = ["app"]
 
 [lint.mccabe]
-max-complexity = 10 
+max-complexity = 10

@@ -4,7 +4,7 @@ Optimised to minimise Assistants latency & network calls
 
 Changes vs previous revision
 ----------------------------
-✓ Each compliance component now triggers ONE Assistants call (run-stream)  
+✓ Each compliance component now triggers ONE Assistants call (run-stream)
   we pass the user prompt inside `additional_messages` instead of adding a
     separate message first.
 ✓ Total calls per /scan request: 1 (thread) + N (compliances).
@@ -14,6 +14,7 @@ Requires
 openai>=1.13.3 (Azure extension), fastapi, pydantic v1, etc.
 project-local: src.app.core.*, src.app.models.*, src.app.services.*
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -50,6 +51,7 @@ client = AzureOpenAI(
 )
 DEPLOYMENT = settings.azure_deployment
 
+
 @lru_cache(maxsize=1)
 def get_assistant_id() -> str:
     assistant = client.beta.assistants.create(
@@ -65,6 +67,7 @@ def get_assistant_id() -> str:
     logger.info("Assistants: using assistant %s", assistant.id)
     return assistant.id
 
+
 templates: Dict[str, str] = {
     k: settings.get_template_path(k).read_text("utf-8")
     for k in ("compliance_eval", "compliance_eval_with_docs")
@@ -74,14 +77,17 @@ EVAL_TEMPLATE_DOCS = templates["compliance_eval_with_docs"]
 
 os.makedirs(settings.log_dir, exist_ok=True)
 
+
 def _bullets(text: str) -> str:
     parts = re.split(r"[\.\n]+", text)
     return "\n".join(f"- {p.strip()}" for p in parts if p.strip())
+
 
 def _docs_block(docs: List[str]) -> str:
     if not docs:
         return "No documents provided"
     return "\n\n".join(f"```text\n{d.strip()}\n```" for d in docs)
+
 
 def build_prompt(template: str, comp: Any, req: ScanRequest, header: str) -> str:
     vars = {
@@ -94,6 +100,7 @@ def build_prompt(template: str, comp: Any, req: ScanRequest, header: str) -> str
         "threshold": comp.threshold,
     }
     return template.format(**vars)
+
 
 def _blocks_to_text(blocks) -> str:
     """Flatten TextDeltaBlock[] → str (works with old & new SDK)."""
@@ -109,6 +116,7 @@ def _blocks_to_text(blocks) -> str:
             out.append(val)
     return "".join(out)
 
+
 def _assistant_stream(prompt: str, thread_id: str) -> str:
     assistant_id = get_assistant_id()
 
@@ -120,9 +128,9 @@ def _assistant_stream(prompt: str, thread_id: str) -> str:
     ) as mgr:
 
         iterator = (
-            mgr.events() if hasattr(mgr, "events")
-            else mgr.iter_events() if hasattr(mgr, "iter_events")
-            else mgr
+            mgr.events()
+            if hasattr(mgr, "events")
+            else mgr.iter_events() if hasattr(mgr, "iter_events") else mgr
         )
 
         chunks: list[str] = []
@@ -139,8 +147,10 @@ def _assistant_stream(prompt: str, thread_id: str) -> str:
 
         return "".join(chunks).strip()
 
+
 async def run_assistant(prompt: str, thread_id: str) -> str:
     return await asyncio.to_thread(_assistant_stream, prompt, thread_id)
+
 
 @router.post("/", response_model=ScanResponse)
 async def scan_compliance(
@@ -159,7 +169,9 @@ async def scan_compliance(
         raise HTTPException(400, detail=str(exc))
 
     if req.documents and len(req.documents) > settings.max_documents:
-        raise HTTPException(400, detail=f"Too many documents (max {settings.max_documents})")
+        raise HTTPException(
+            400, detail=f"Too many documents (max {settings.max_documents})"
+        )
 
     header = settings.get_task_template(use_case)
 
@@ -188,7 +200,7 @@ async def scan_compliance(
         section = ParsedSection(
             problem=parsed.get("problem"),
             why_it_failed=parsed.get("why_it_failed"),
-            what_to_fix=parsed.get("what_to_fix"),
+            explain=parsed.get("what_to_fix"),
             rephrase_prompt=parsed.get("rephrase_prompt"),
             compliance_id_and_name=parsed.get("compliance_id_and_name"),
             grade=str(ratio),
@@ -223,4 +235,6 @@ async def scan_compliance(
         json.dump(log_blob, fh, indent=2)
     logger.info("[%s] log saved → %s", req_id, path)
 
-    return ScanResponse(detailed=detailed, rephrased_prompt=None if failures else req.prompt)
+    return ScanResponse(
+        detailed=detailed, rephrased_prompt=None if failures else req.prompt
+    )

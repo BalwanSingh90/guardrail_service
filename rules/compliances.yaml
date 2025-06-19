@@ -75,4 +75,3 @@ compliances:
     threshold: 0.91
     prompt: |
       Evaluate the following input for Regulatory Compliance. Determine compliance with applicable laws, regulations, and industry standards. Provide Summarization, Recommendations, Insights, Grade, Critical Compliance Concern, and Required Mitigation.
-

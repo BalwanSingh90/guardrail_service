@@ -21,12 +21,13 @@ class Settings(BaseSettings):
     All settings can be overridden using environment variables or a .env file.
     Default values are provided where appropriate.
     """
+
     # Default use case, read from .env COMPLIANCE_MAP
     default_use_case: str = Field(
         "generic",
         alias="COMPLIANCE_MAP",
         env="COMPLIANCE_MAP",
-        description="Default compliance use case identifier"
+        description="Default compliance use case identifier",
     )
 
     # Static map of compliance files and task templates
@@ -35,22 +36,30 @@ class Settings(BaseSettings):
             "file": "compliances.yaml",
             "task_template": (
                 "Evaluate the following input against all compliance categories defined in the system prompt."
-            )
+            ),
         },
         "azure_ccc": {
             "file": "azure_ccc_compliances.yaml",
             "task_template": (
                 "Your job is to analyze this system prompt against the CCC guidelines and other compliance rules, flag any violations, and—if it fails—suggest a compliant rephrasing. \n"
                 "Use the **Compliance Rule Description** below to drive your analysis:"
-            )
-        }
+            ),
+        },
     }
 
     # Azure OpenAI Configuration
-    azure_endpoint: AnyUrl = Field(..., alias="AZURE_OPENAI_ENDPOINT", env="AZURE_OPENAI_ENDPOINT")
+    azure_endpoint: AnyUrl = Field(
+        ..., alias="AZURE_OPENAI_ENDPOINT", env="AZURE_OPENAI_ENDPOINT"
+    )
     azure_api_key: str = Field(..., alias="AZURE_OPENAI_KEY", env="AZURE_OPENAI_KEY")
-    azure_deployment: str = Field("gpt-4", alias="AZURE_OPENAI_DEPLOYMENT", env="AZURE_OPENAI_DEPLOYMENT")
-    azure_api_version: str = Field("2024-02-15-preview", alias="AZURE_OPENAI_API_VERSION", env="AZURE_OPENAI_API_VERSION")
+    azure_deployment: str = Field(
+        "gpt-4", alias="AZURE_OPENAI_DEPLOYMENT", env="AZURE_OPENAI_DEPLOYMENT"
+    )
+    azure_api_version: str = Field(
+        "2024-02-15-preview",
+        alias="AZURE_OPENAI_API_VERSION",
+        env="AZURE_OPENAI_API_VERSION",
+    )
 
     # LLM Configuration
     llm_temperature: float = Field(
@@ -59,7 +68,7 @@ class Settings(BaseSettings):
         env="LLM_TEMPERATURE",
         ge=0.0,
         le=1.0,
-        description="Controls randomness in output (0 = deterministic, 1 = more creative)"
+        description="Controls randomness in output (0 = deterministic, 1 = more creative)",
     )
 
     llm_top_p: float = Field(
@@ -68,7 +77,7 @@ class Settings(BaseSettings):
         env="LLM_TOP_P",
         ge=0.0,
         le=1.0,
-        description="Controls nucleus sampling; lower values = more focused outputs"
+        description="Controls nucleus sampling; lower values = more focused outputs",
     )
 
     llm_frequency_penalty: float = Field(
@@ -77,7 +86,7 @@ class Settings(BaseSettings):
         env="LLM_FREQUENCY_PENALTY",
         ge=0.0,
         le=1.0,
-        description="Penalizes repeating tokens"
+        description="Penalizes repeating tokens",
     )
 
     llm_presence_penalty: float = Field(
@@ -86,7 +95,7 @@ class Settings(BaseSettings):
         env="LLM_PRESENCE_PENALTY",
         ge=0.0,
         le=1.0,
-        description="Encourages introducing new topics"
+        description="Encourages introducing new topics",
     )
 
     llm_max_tokens: Optional[int] = Field(
@@ -94,14 +103,14 @@ class Settings(BaseSettings):
         alias="LLM_MAX_TOKENS",
         env="LLM_MAX_TOKENS",
         gt=0,
-        description="Maximum number of tokens to generate"
+        description="Maximum number of tokens to generate",
     )
 
     llm_stop: Optional[List[str]] = Field(
         default_factory=list,
         alias="LLM_STOP",
         env="LLM_STOP",
-        description="List of stop sequences to end generation"
+        description="List of stop sequences to end generation",
     )
 
     llm_timeout: int = Field(
@@ -109,7 +118,7 @@ class Settings(BaseSettings):
         alias="LLM_TIMEOUT",
         env="LLM_TIMEOUT",
         gt=0,
-        description="Maximum timeout in seconds for the LLM response"
+        description="Maximum timeout in seconds for the LLM response",
     )
 
     llm_past_messages_to_include: Optional[int] = Field(
@@ -117,39 +126,74 @@ class Settings(BaseSettings):
         alias="LLM_PAST_MESSAGES_TO_INCLUDE",
         env="LLM_PAST_MESSAGES_TO_INCLUDE",
         ge=0,
-        description="Number of past messages to include in chat context (if using memory)"
+        description="Number of past messages to include in chat context (if using memory)",
     )
     # Template Configuration
-    template_dir: str = Field("src/app/templates", alias="TEMPLATE_DIR", env="TEMPLATE_DIR")
+    template_dir: str = Field(
+        "src/app/templates", alias="TEMPLATE_DIR", env="TEMPLATE_DIR"
+    )
     template_names: Dict[str, str] = Field(
         {
             "compliance_eval": "compliance_eval.md",
             "compliance_eval_with_docs": "compliance_eval_with_documents.md",
-            "aggregator": "aggregator.md"
+            "aggregator": "aggregator.md",
         },
         alias="TEMPLATE_NAMES",
-        env="TEMPLATE_NAMES"
+        env="TEMPLATE_NAMES",
     )
 
     # File Paths
-    compliances_file: str = Field("compliances.yaml", alias="COMPLIANCES_FILE", env="COMPLIANCES_FILE")
+    compliances_file: str = Field(
+        "compliances.yaml", alias="COMPLIANCES_FILE", env="COMPLIANCES_FILE"
+    )
     log_dir: str = Field("src/logs", alias="LOG_DIR", env="LOG_DIR")
 
     # Application Settings
-    request_timeout: int = Field(300, alias="REQUEST_TIMEOUT", env="REQUEST_TIMEOUT", gt=0)
+    request_timeout: int = Field(
+        300, alias="REQUEST_TIMEOUT", env="REQUEST_TIMEOUT", gt=0
+    )
     max_documents: int = Field(10, alias="MAX_DOCUMENTS", env="MAX_DOCUMENTS", gt=0)
-    max_document_size: int = Field(1024 * 1024, alias="MAX_DOCUMENT_SIZE", env="MAX_DOCUMENT_SIZE", gt=0)
+    max_document_size: int = Field(
+        1024 * 1024, alias="MAX_DOCUMENT_SIZE", env="MAX_DOCUMENT_SIZE", gt=0
+    )
 
     # Evaluation Settings
-    evaluation_dir: str = Field("evaluation", alias="EVALUATION_DIR", env="EVALUATION_DIR")
-    evaluation_inputs_dir: str = Field("inputs", alias="EVALUATION_INPUTS_DIR", env="EVALUATION_INPUTS_DIR")
-    evaluation_outputs_dir: str = Field("outputs", alias="EVALUATION_OUTPUTS_DIR", env="EVALUATION_OUTPUTS_DIR")
-    evaluation_metrics_dir: str = Field("metrics", alias="EVALUATION_METRICS_DIR", env="EVALUATION_METRICS_DIR")
-    evaluation_test_cases_file: str = Field("test_cases.json", alias="EVALUATION_TEST_CASES_FILE", env="EVALUATION_TEST_CASES_FILE")
-    evaluation_raw_responses_dir: str = Field("raw_responses", alias="EVALUATION_RAW_RESPONSES_DIR", env="EVALUATION_RAW_RESPONSES_DIR")
-    evaluation_evaluated_dir: str = Field("evaluated", alias="EVALUATION_EVALUATED_DIR", env="EVALUATION_EVALUATED_DIR")
-    evaluation_metrics_file: str = Field("summary_metrics.json", alias="EVALUATION_METRICS_FILE", env="EVALUATION_METRICS_FILE")
-    evaluation_grade_tolerance: float = Field(1e-6, alias="EVALUATION_GRADE_TOLERANCE", env="EVALUATION_GRADE_TOLERANCE", ge=0.0)
+    evaluation_dir: str = Field(
+        "evaluation", alias="EVALUATION_DIR", env="EVALUATION_DIR"
+    )
+    evaluation_inputs_dir: str = Field(
+        "inputs", alias="EVALUATION_INPUTS_DIR", env="EVALUATION_INPUTS_DIR"
+    )
+    evaluation_outputs_dir: str = Field(
+        "outputs", alias="EVALUATION_OUTPUTS_DIR", env="EVALUATION_OUTPUTS_DIR"
+    )
+    evaluation_metrics_dir: str = Field(
+        "metrics", alias="EVALUATION_METRICS_DIR", env="EVALUATION_METRICS_DIR"
+    )
+    evaluation_test_cases_file: str = Field(
+        "test_cases.json",
+        alias="EVALUATION_TEST_CASES_FILE",
+        env="EVALUATION_TEST_CASES_FILE",
+    )
+    evaluation_raw_responses_dir: str = Field(
+        "raw_responses",
+        alias="EVALUATION_RAW_RESPONSES_DIR",
+        env="EVALUATION_RAW_RESPONSES_DIR",
+    )
+    evaluation_evaluated_dir: str = Field(
+        "evaluated", alias="EVALUATION_EVALUATED_DIR", env="EVALUATION_EVALUATED_DIR"
+    )
+    evaluation_metrics_file: str = Field(
+        "summary_metrics.json",
+        alias="EVALUATION_METRICS_FILE",
+        env="EVALUATION_METRICS_FILE",
+    )
+    evaluation_grade_tolerance: float = Field(
+        1e-6,
+        alias="EVALUATION_GRADE_TOLERANCE",
+        env="EVALUATION_GRADE_TOLERANCE",
+        ge=0.0,
+    )
 
     @field_validator("template_dir")
     @classmethod

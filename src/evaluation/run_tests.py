@@ -20,5 +20,7 @@ for case in test_cases:
     result = response.json()
     out_path = os.path.join(OUTPUT_DIR, f"{case_id}.json")
     with open(out_path, "w") as out_f:
-        json.dump({"id": case_id, "input": payload, "response": result}, out_f, indent=2)
+        json.dump(
+            {"id": case_id, "input": payload, "response": result}, out_f, indent=2
+        )
     print(f"Saved raw response for {case_id} to {out_path}")

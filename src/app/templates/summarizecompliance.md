@@ -1,15 +1,15 @@
 Summarization Compliance Template
 Task
-Generate a concise summary strictly grounded in the source document, with no added or inferred information 
+Generate a concise summary strictly grounded in the source document, with no added or inferred information
 Medium
 Microsoft for Developers
 .
 
-Prohibit speculation about author intent, sentiment, or backgrounds 
+Prohibit speculation about author intent, sentiment, or backgrounds
 Medium
 .
 
-Preserve dates/times exactly as in the source 
+Preserve dates/times exactly as in the source
 Microsoft Learn
 .
 
@@ -26,19 +26,19 @@ Edit
   ]
 }
 Definition
-Grounded Summary: Every sentence must mirror exact facts from the document, without inference 
+Grounded Summary: Every sentence must mirror exact facts from the document, without inference
 Microsoft for Developers
 .
 
-No Speculation: Avoid assumptions about sentiment, purpose, or personal details 
+No Speculation: Avoid assumptions about sentiment, purpose, or personal details
 Medium
 .
 
-Date Preservation: Dates and times remain unchanged from the source 
+Date Preservation: Dates and times remain unchanged from the source
 Microsoft Learn
 .
 
-Conciseness: Summaries must be coherent, focused, and of moderate length 
+Conciseness: Summaries must be coherent, focused, and of moderate length
 Microsoft for Developers
 .
 
@@ -52,4 +52,3 @@ Calls Azure OpenAI’s summarization endpoint.
 Returns a final grounded, coherent summary.
 
 Logs compliance metrics (e.g., length, date fidelity).
-

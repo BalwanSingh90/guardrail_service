@@ -8,8 +8,12 @@ logger = get_logger(__name__)
 
 
 class ScanRequest(BaseModel):
-    prompt: str = Field(..., description="The prompt text to be evaluated for compliance", min_length=1)
-    documents: Optional[List[str]] = Field(default=[], description="List of documents to be analyzed")
+    prompt: str = Field(
+        ..., description="The prompt text to be evaluated for compliance", min_length=1
+    )
+    documents: Optional[List[str]] = Field(
+        default=[], description="List of documents to be analyzed"
+    )
 
     @classmethod
     @field_validator("prompt")
@@ -23,10 +27,18 @@ class ScanRequest(BaseModel):
 
 class ParsedSection(BaseModel):
     problem: Optional[str] = Field(default=None, description="What went wrong")
-    why_it_failed: Optional[str] = Field(default=None, description="Explanation for failure")
-    what_to_fix: Optional[str] = Field(default=None, description="Actionable correction advice")
-    rephrase_prompt: Optional[str] = Field(default=None, description="Revised compliant prompt")
-    compliance_id_and_name: Optional[str] = Field(default=None, description="Compliance ID and name")
+    why_it_failed: Optional[str] = Field(
+        default=None, description="Explanation for failure"
+    )
+    explain: Optional[str] = Field(
+        default=None, description="Actionable correction advice"
+    )
+    rephrase_prompt: Optional[str] = Field(
+        default=None, description="Revised compliant prompt"
+    )
+    compliance_id_and_name: Optional[str] = Field(
+        default=None, description="Compliance ID and name"
+    )
     grade: Optional[str] = Field(default=None, description="Score in 'X.XX/1' format")
 
     @classmethod
@@ -63,9 +75,15 @@ class ComplianceResult(BaseModel):
 
 
 class ScanResponse(BaseModel):
-    detailed: Dict[str, ComplianceResult] = Field(..., description="Result per compliance check")
-    rephrased_prompt: Optional[str] = Field(default=None, description="Fallback prompt if original fails")
-    failures_summary: Optional[List[str]] = Field(default=None, description="Formatted summary (optional)")
+    detailed: Dict[str, ComplianceResult] = Field(
+        ..., description="Result per compliance check"
+    )
+    rephrased_prompt: Optional[str] = Field(
+        default=None, description="Fallback prompt if original fails"
+    )
+    failures_summary: Optional[List[str]] = Field(
+        default=None, description="Formatted summary (optional)"
+    )
 
     model_config: ClassVar[Dict[str, Any]] = {
         "extra": "forbid",
@@ -78,17 +96,17 @@ class ScanResponse(BaseModel):
                         "parsed": {
                             "problem": "The response included assumptions not grounded in documents.",
                             "why_it_failed": "No direct quote from source documents was used.",
-                            "what_to_fix": "Only refer to approved documents explicitly.",
+                            "explain": "Only refer to approved documents explicitly.",
                             "rephrase_prompt": "How do I act according to documented escalation steps?",
                             "compliance_id_and_name": "PC1 – Grounded Response",
-                            "grade": "0.72/1"
+                            "grade": "0.72/1",
                         },
                         "threshold": 0.9,
-                        "passed": False
+                        "passed": False,
                     }
                 },
                 "rephrased_prompt": "Alternative wording suggestion...",
-                "failures_summary": None
+                "failures_summary": None,
             }
-        }
+        },
     }

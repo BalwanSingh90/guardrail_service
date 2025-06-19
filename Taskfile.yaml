@@ -1,21 +1,22 @@
 version: '3'
 
 vars:
-  PYTHON: python
-  VENV_DIR: env
   SRC_DIR: src
+  HOST: 0.0.0.0
+  PORT: 8080
+  APP_MODULE: app.main:app  # adjust if your FastAPI app path differs
 
 tasks:
   setup:
-    desc: Set up the development environment
+    desc: Set up the project using uv and pyproject.toml
     cmds:
-      - '{{.PYTHON}} -m venv {{.VENV_DIR}}'
-      - '{{.VENV_DIR}}/Scripts/python.exe -m pip install --upgrade pip'
-      - '{{.VENV_DIR}}/Scripts/pip install -r requirements.txt'
-      - '{{.VENV_DIR}}/Scripts/pip install -r requirements-dev.txt'
+      - uv venv
+      - uv pip install -U pip setuptools wheel  # optional, for safety
+      - uv pip install --extra cpu --no-deps  # optional, if you use extras
+      - uv pip install -e .
 
   clean:
-    desc: Clean up build artifacts and cache files
+    desc: Remove caches and build artifacts
     cmds:
       - rm -rf build/
       - rm -rf dist/
@@ -26,43 +27,31 @@ tasks:
       - rm -rf {{.SRC_DIR}}/**/__pycache__/
 
   lint:
-    desc: Run all linters
+    desc: Run linters using ruff and mypy
     cmds:
-      - '{{.VENV_DIR}}/Scripts/ruff check {{.SRC_DIR}}'
-      - '{{.VENV_DIR}}/Scripts/mypy {{.SRC_DIR}}'
+      - uv run -- ruff check {{.SRC_DIR}}
+      - uv run -- mypy {{.SRC_DIR}}
 
   format:
-    desc: Format code using ruff
+    desc: Auto-format code using ruff
     cmds:
-      - '{{.VENV_DIR}}/Scripts/ruff format {{.SRC_DIR}}'
+      - uv run -- ruff format {{.SRC_DIR}}
 
   test:
-    desc: Run tests
+    desc: Run tests using pytest
     cmds:
-      - '{{.VENV_DIR}}/Scripts/pytest {{.SRC_DIR}}/tests'
+      - uv run -- pytest {{.SRC_DIR}}/tests
 
   start:
-    desc: Start the Azure Functions app locally
+    desc: Start the FastAPI app using Uvicorn
     cmds:
-      - '{{.VENV_DIR}}/Scripts/func start'
-
-  build:
-    desc: Build the Azure Functions app
-    cmds:
-      - '{{.VENV_DIR}}/Scripts/func azure functionapp publish'
+      - uv run -- uvicorn {{.APP_MODULE}} --reload --host {{.HOST}} --port {{.PORT}}
 
   dev:
-    desc: Run development tasks (lint, format, test)
+    desc: Run linting, formatting, and tests
     deps: [lint, format, test]
 
-  install-deps:
-    desc: Install project dependencies
-    cmds:
-      - '{{.VENV_DIR}}/Scripts/pip install -r requirements.txt'
-      - '{{.VENV_DIR}}/Scripts/pip install -r requirements-dev.txt'
-
   update-deps:
-    desc: Update project dependencies
+    desc: Update all dependencies from pyproject.toml
     cmds:
-      - '{{.VENV_DIR}}/Scripts/pip install --upgrade -r requirements.txt'
-      - '{{.VENV_DIR}}/Scripts/pip install --upgrade -r requirements-dev.txt'
+      - uv pip install --upgrade -e .

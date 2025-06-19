@@ -26,6 +26,7 @@ logger = get_logger(__name__)
 # Initialize settings
 settings = Settings()
 
+
 def validate_compliance_data(data: Dict[str, Any]) -> bool:
     """Validate the structure and content of compliance data."""
     is_valid = True
@@ -52,17 +53,24 @@ def validate_compliance_data(data: Dict[str, Any]) -> bool:
                     break
                 # Check required fields
                 required_fields = ["id", "name", "description", "threshold"]
-                missing_fields = [field for field in required_fields if field not in item]
+                missing_fields = [
+                    field for field in required_fields if field not in item
+                ]
                 if missing_fields:
-                    logger.error(f"Compliance item at index {idx} missing required fields: {missing_fields}")
+                    logger.error(
+                        f"Compliance item at index {idx} missing required fields: {missing_fields}"
+                    )
                     is_valid = False
                     break
                 # Validate threshold
                 if not isinstance(item.get("threshold"), (int, float)):
-                    logger.error(f"Compliance item at index {idx} threshold must be a number")
+                    logger.error(
+                        f"Compliance item at index {idx} threshold must be a number"
+                    )
                     is_valid = False
                     break
     return is_valid
+
 
 def load_compliances(file_path) -> List[ComplianceDefinition]:
     """
@@ -131,6 +139,7 @@ def load_compliances(file_path) -> List[ComplianceDefinition]:
         error_msg = f"Unexpected error loading compliance definitions: {e!s}"
         logger.error(error_msg, exc_info=True)
         raise RuntimeError(error_msg) from e
+
 
 def get_compliance_by_id(compliance_id: str) -> ComplianceDefinition:
     """

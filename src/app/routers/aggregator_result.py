@@ -24,40 +24,42 @@ from src.app.models.request_logger import RequestLogger
 from src.app.services.compliance_service import load_compliances
 
 # ──────────────────────────── setup ──────────────────────────────────
-logger   = get_logger(__name__)
+logger = get_logger(__name__)
 settings = Settings()
-router   = APIRouter(prefix="/aggregate", tags=["aggregation"])
+router = APIRouter(prefix="/aggregate", tags=["aggregation"])
 
 AGG_TEMPLATE = settings.get_template_path("aggregator").read_text("utf-8")
 logger.info("Aggregator template loaded")
 
 # One global AzureChatOpenAI client – re-used for every request
 _llm_client = AzureChatOpenAI(
-    api_key        = settings.azure_api_key,
-    azure_endpoint = str(settings.azure_endpoint),
-    api_version    = settings.azure_api_version,
+    api_key=settings.azure_api_key,
+    azure_endpoint=str(settings.azure_endpoint),
+    api_version=settings.azure_api_version,
     deployment_name=settings.azure_deployment,
-    temperature    = settings.llm_temperature,
-    max_tokens     = settings.llm_max_tokens,
+    temperature=settings.llm_temperature,
+    max_tokens=settings.llm_max_tokens,
     frequency_penalty=settings.llm_frequency_penalty,
-    presence_penalty =settings.llm_presence_penalty,
-    timeout        = 60,                              # seconds
+    presence_penalty=settings.llm_presence_penalty,
+    timeout=60,  # seconds
     # force JSON output (Azure supports the OpenAI 1106 JSON mode)
-    model_kwargs   = {"response_format": {"type": "json_object"}},
+    model_kwargs={"response_format": {"type": "json_object"}},
 )
 _AGG_CHAIN = LLMChain(
-    llm   = _llm_client,
-    prompt= PromptTemplate(
-        template       = AGG_TEMPLATE,
-        input_variables= ["failed_json", "original_prompt"],
+    llm=_llm_client,
+    prompt=PromptTemplate(
+        template=AGG_TEMPLATE,
+        input_variables=["failed_json", "original_prompt"],
     ),
 )
 logger.info("Aggregator LLMChain initialised")
+
 
 # ────────────────────────── Pydantic I/O ────────────────────────────
 class AggregationRequest(BaseModel):
     failed_json: Dict[str, Any]
     original_prompt: str
+
 
 class AggregationResponse(BaseModel):
     aggregated_summary: str = Field(..., description="Plain-text roll-up")
@@ -71,8 +73,10 @@ class AggregationResponse(BaseModel):
     def _non_empty(cls, v: str) -> str:
         return v.strip() or "<NO-PROMPT-RETURNED>"
 
+
 # ───────────────────────── helper utils ─────────────────────────────
 _JSON_RE = re.compile(r"\{[\s\S]*\}", re.DOTALL)
+
 
 def _first_json_block(text: str) -> str:
     """Return the *first* {...} block – raises if none found."""
@@ -80,6 +84,7 @@ def _first_json_block(text: str) -> str:
     if not m:
         raise JSONDecodeError("No JSON object found", text, 0)
     return m.group(0)
+
 
 # ──────────────────────────── endpoint ──────────────────────────────
 @router.post("/results", response_model=AggregationResponse)
@@ -90,13 +95,13 @@ async def aggregate_compliance(
 ) -> AggregationResponse:
     # ── request bookkeeping ─────────────────────────────────────────
     req_id = request.headers.get("x-request-id") or str(uuid.uuid4())
-    log    = RequestLogger(req_id)
+    log = RequestLogger(req_id)
     log.log_stage("aggregation_request_received", req.dict())
 
-    use_case   = use_case_id or settings.default_use_case
-    comp_path  = settings.get_compliance_file(use_case)
-    compliances= load_compliances(comp_path)
-    valid_ids  = {c.id for c in compliances}
+    use_case = use_case_id or settings.default_use_case
+    comp_path = settings.get_compliance_file(use_case)
+    compliances = load_compliances(comp_path)
+    valid_ids = {c.id for c in compliances}
 
     unknown = [cid for cid in req.failed_json if cid not in valid_ids]
     if unknown:
@@ -107,8 +112,8 @@ async def aggregate_compliance(
         cid: {
             **req.failed_json[cid],
             "description": next(c.description for c in compliances if c.id == cid),
-            "threshold"  : next(c.threshold   for c in compliances if c.id == cid),
-            "name"       : next(c.name        for c in compliances if c.id == cid),
+            "threshold": next(c.threshold for c in compliances if c.id == cid),
+            "name": next(c.name for c in compliances if c.id == cid),
         }
         for cid in req.failed_json
     }
@@ -118,8 +123,8 @@ async def aggregate_compliance(
     # ── LLM call ────────────────────────────────────────────────────
     try:
         raw_output: str = await _AGG_CHAIN.arun(
-            failed_json     = failed_json_str,
-            original_prompt = req.original_prompt,
+            failed_json=failed_json_str,
+            original_prompt=req.original_prompt,
         )
         log.log_stage("llm_raw_output", raw_output)
     except Exception:
@@ -134,29 +139,34 @@ async def aggregate_compliance(
         raise HTTPException(
             502,
             "Aggregator returned invalid JSON. "
-            "Check template or increase model temperature."
+            "Check template or increase model temperature.",
         )
 
     # Expected keys – tolerate different capitalisation
-    agg_summary = payload.get("aggregated_summary") \
-              or  payload.get("Aggregated Summary") \
-              or  payload.get("summary") \
-              or  ""
-    recs        = payload.get("recommendations") \
-              or payload.get("Recommendations") \
-              or {}
-    rephrase    = payload.get("rephrased_prompt") \
-              or payload.get("Rephrase Prompt") \
-              or req.original_prompt
+    agg_summary = (
+        payload.get("aggregated_summary")
+        or payload.get("Aggregated Summary")
+        or payload.get("summary")
+        or ""
+    )
+    recs = payload.get("recommendations") or payload.get("Recommendations") or {}
+    rephrase = (
+        payload.get("rephrased_prompt")
+        or payload.get("Rephrase Prompt")
+        or req.original_prompt
+    )
 
-    log.log_stage("parsed_aggregation_result", {
-        "aggregated_summary": agg_summary,
-        "recommendations"   : recs,
-        "rephrased_prompt"  : rephrase,
-    })
+    log.log_stage(
+        "parsed_aggregation_result",
+        {
+            "aggregated_summary": agg_summary,
+            "recommendations": recs,
+            "rephrased_prompt": rephrase,
+        },
+    )
 
     return AggregationResponse(
-        aggregated_summary = agg_summary.strip(),
-        recommendations    = recs,
-        rephrased_prompt   = rephrase.strip(),
+        aggregated_summary=agg_summary.strip(),
+        recommendations=recs,
+        rephrased_prompt=rephrase.strip(),
     )

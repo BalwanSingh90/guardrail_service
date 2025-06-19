@@ -18,16 +18,18 @@ settings = config_module.Settings()
 app = FastAPI(
     title="Guardrail Compliance Pipeline",
     version="1.0.0",
-    description="A service that checks user prompts/documents against compliance rules"
+    description="A service that checks user prompts/documents against compliance rules",
 )
-
-
 
 
 # Include the /scan router
 app.include_router(scan_router)
 app.include_router(aggregation_router)
 
+
 @app.get("/", tags=["health"])
 async def health_check() -> dict:
-    return {"status": "ok", "timestamp": __import__("datetime").datetime.utcnow().isoformat()}
+    return {
+        "status": "ok",
+        "timestamp": __import__("datetime").datetime.utcnow().isoformat(),
+    }
