@@ -23,7 +23,7 @@ class ComplianceDefinition(BaseModel):
         ...,
         description="Unique compliance ID",
         min_length=1,
-        pattern="^[a-zA-Z0-9_-]+$",  # ✅ changed from regex → pattern
+        pattern="^[a-zA-Z0-9_-]+$",
     )
 
     name: str = Field(

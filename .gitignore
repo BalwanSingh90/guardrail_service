@@ -21,7 +21,8 @@ dist/
 
 # Installer logs
 pip-log.txt
-
+src/logs/
+uv.lock
 # Unit test / coverage reports
 htmlcov/
 .tox/

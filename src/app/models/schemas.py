@@ -22,14 +22,12 @@ class ScanRequest(BaseModel):
 
 
 class ParsedSection(BaseModel):
-    reasoning: Optional[List[str]] = Field(default=None, description="List of reasoning points from the evaluation")
-    summarization: Optional[str] = Field(default=None, description="Overall summary of the evaluation")
-    recommendations: Optional[List[str]] = Field(default=None, description="List of recommendations for improvement")
-    insights: Optional[List[str]] = Field(default=None, description="List of key insights from the evaluation")
-    grade: Optional[str] = Field(default=None, description="Numerical grade in string format (e.g., '0.95/1')")
-    critical_compliance_concern: Optional[str] = Field(default=None, description="Major compliance issues identified")
-    required_mitigation: Optional[str] = Field(default=None, description="Required actions to address compliance concerns")
-    rephrase_prompt: Optional[str] = Field(default=None, description="Suggested alternative prompt wording")
+    problem: Optional[str] = Field(default=None, description="What went wrong")
+    why_it_failed: Optional[str] = Field(default=None, description="Explanation for failure")
+    what_to_fix: Optional[str] = Field(default=None, description="Actionable correction advice")
+    rephrase_prompt: Optional[str] = Field(default=None, description="Revised compliant prompt")
+    compliance_id_and_name: Optional[str] = Field(default=None, description="Compliance ID and name")
+    grade: Optional[str] = Field(default=None, description="Score in 'X.XX/1' format")
 
     @classmethod
     @field_validator("grade")
@@ -39,25 +37,24 @@ class ParsedSection(BaseModel):
             score = float(score)
             if not 0 <= score <= 1:
                 raise ValueError("Score must be between 0 and 1")
-            if denominator != "1":
+            if denominator.strip() != "1":
                 raise ValueError("Denominator must be 1")
-        except (ValueError, IndexError) as e:
+        except Exception as e:
             logger.error(f"Invalid grade format: {v}")
-            raise ValueError("Grade must be in format 'X.XX/1' where X.XX is between 0 and 1") from e
+            raise ValueError("Grade must be in format 'X.XX/1'") from e
         return v
 
 
 class ComplianceResult(BaseModel):
-    name: str = Field(..., description="Name of the compliance check", min_length=1)
-    description: str = Field(..., description="Description of what the check evaluates", min_length=1)
-    raw_output: str = Field(..., description="Raw text output from the evaluation")
-    parsed: ParsedSection = Field(..., description="Structured parsed sections from the evaluation")
-    threshold: float = Field(..., ge=0.0, le=1.0, description="Pass/fail threshold between 0 and 1")
-    passed: bool = Field(..., description="Whether the evaluation passed the threshold")
+    name: str = Field(..., description="Compliance name")
+    description: str = Field(..., description="What this compliance checks for")
+    parsed: ParsedSection = Field(..., description="Parsed structured output")
+    threshold: float = Field(..., ge=0.0, le=1.0, description="Required minimum score")
+    passed: bool = Field(..., description="True if grade ≥ threshold")
 
     @classmethod
-    @field_validator("score", "threshold")
-    def validate_score_and_threshold(cls, v: float, info) -> float:
+    @field_validator("threshold")
+    def validate_threshold(cls, v: float, info) -> float:
         if not 0 <= v <= 1:
             logger.error(f"Invalid {info.field_name} value: {v}")
             raise ValueError(f"{info.field_name} must be between 0 and 1")
@@ -66,27 +63,32 @@ class ComplianceResult(BaseModel):
 
 
 class ScanResponse(BaseModel):
-    detailed: Dict[str, ComplianceResult] = Field(..., description="Detailed results for each compliance check")
-    rephrased_prompt: Optional[str] = Field(default=None, description="Suggested alternative prompt wording")
+    detailed: Dict[str, ComplianceResult] = Field(..., description="Result per compliance check")
+    rephrased_prompt: Optional[str] = Field(default=None, description="Fallback prompt if original fails")
+    failures_summary: Optional[List[str]] = Field(default=None, description="Formatted summary (optional)")
 
     model_config: ClassVar[Dict[str, Any]] = {
         "extra": "forbid",
         "json_schema_extra": {
             "example": {
                 "detailed": {
-                    "privacy_check": {
-                        "name": "Privacy Compliance",
-                        "description": "Checks for privacy-related issues",
-                        "raw_output": "...",
+                    "PC1": {
+                        "name": "Grounded Response",
+                        "description": "Ensure answers are based on source documents only.",
                         "parsed": {
-                            "reasoning": ["Point 1", "Point 2"],
-                            "grade": "0.95/1"
+                            "problem": "The response included assumptions not grounded in documents.",
+                            "why_it_failed": "No direct quote from source documents was used.",
+                            "what_to_fix": "Only refer to approved documents explicitly.",
+                            "rephrase_prompt": "How do I act according to documented escalation steps?",
+                            "compliance_id_and_name": "PC1 – Grounded Response",
+                            "grade": "0.72/1"
                         },
-                        "threshold": 0.8,
-                        "passed": True
+                        "threshold": 0.9,
+                        "passed": False
                     }
                 },
-                "rephrased_prompt": "Alternative wording suggestion..."
+                "rephrased_prompt": "Alternative wording suggestion...",
+                "failures_summary": None
             }
         }
     }

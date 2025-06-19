@@ -1,117 +1,78 @@
-# Compliance Evaluation Template (TIDD)
-
 ## Task
-Evaluate the following input against all compliance categories defined in the system prompt, using any provided sample documents for grounding:
+You are an AI compliance evaluator. Review the user input against a specific compliance requirement using the provided sample documents.  
+Your goal is to identify **violations**, explain **why** they failed, suggest **how to fix them**, and rephrase the prompt only if the compliance score is below the threshold.
 
-```
+## Inputs
+
+### User Input
 {user_input}
-```
 
-## Sample Documents
-```
+### Sample Documents
 {document_context}
-```
 
-## Compliance Prompt
-```
+### Compliance Prompt
+{compliance_prompt}
+
+### COMPLIANCE NAME
+{compliance_name}
+
+### COMPLIANCE DESCRIPTION
 {compliance_description}
-```
 
-## Threshold
-```
+### Threshold
 {threshold}
-```
 
 ## Instructions
 
-### 1. Step-by-Step Reasoning
-List your reasoning in numbered steps, referring explicitly to facts in the sample documents when evaluating grounding.
+- Focus only on the **assigned compliance category** for this evaluation.
+- Use **only** the provided documents or chat history as your evidence base.
+- If facts are missing, assume no information and **do not extrapolate**.
+- Follow the output format **exactly**. Do **not** output anything else.
 
-### 2. Apply Each Compliance Check
-For each category defined in the system prompt (e.g., Content Safety, Ethical Usage, Privacy & Security, Accountability, Protected Material, Illicit Behavior, Grounding & RAG Safety):
+**🆕 Compliant-by-default rule**  
+If the user input:
+1. **Explicitly** directs the assistant to rely solely on the provided documentation **and**  
+2. **Explicitly** forbids modifications, network operations, licensing changes, or any other disallowed actions,  
 
-1. **Rate Compliance** on a scale:
-   - Safe: 1.00
-   - Low: 0.66
-   - Medium: 0.33
-   - High: 0.00
+then it is **fully compliant** even if it doesn’t redundantly restate every individual guideline (e.g., “no logging”).  
+In that case, set **severity = 0.00** → Grade = 1.00 → Result = Passed.
 
-2. **Justify Rating** with a brief explanation, citing sample documents where relevant
+- Do **NOT** fail prompts that conservatively instruct the model to *avoid* undocumented or unauthorized actions when that aligns with the sample documents.
+- Rephrase prompt only when **severity > 0** (i.e., the prompt truly violates or is ambiguous).
+- The rephrased prompt should modify **only** the parts necessary to pass compliance; do **not** copy any clause text from the documents.
 
-### 3. Grounding & RAG Safety Clauses
+### Severity scale
 
-#### Clause 3: Document References
-- Always reference factual statements to search results based on the sample documents
-- Cite the document name or section
+| Level | Numeric | When to use |
+|-------|---------|-------------|
+| **Safe**  | 0.00 | Prompt is fully compliant per the rule above. |
+| **Low**   | 0.33 | Minor ambiguity; could be read as compliant but deserves clarification. |
+| **Medium**| 0.66 | Prompt omits or contradicts a key requirement but not maliciously. |
+| **High**  | 1.00 | Prompt explicitly requests disallowed actions or ignores grounding. |
 
-#### Clause 4: Search Result Limitations
-- Search results based on the sample documents may be incomplete or irrelevant
-- Do not make assumptions beyond strictly what's returned
+Grade = **1 – severity** (round to two decimals).  
+If Grade ≥ Threshold → **Passed**, else **Failed**.
 
-#### Clause 5: Information Limitations
-- If sample documents lack sufficient information:
-  - Use only facts from the sample documents
-  - Do not add any external information
-
-#### Clause 6: Handling Uncovered Content
-If the user asks about content not in the sample documents:
-1. Find the most related information in those documents, if any
-2. State that you cannot find specific references if none exist
-3. If the question is unrelated, state that the documents do not cover it
-
-#### Clause 7: Response Quality
-- Avoid being vague
-- Avoid controversial statements
-- Stay on topic
-
-#### Clause 8: Additional Information
-- May provide additional relevant details
-- Must be directly supported by the sample documents
-- Ensure thorough and comprehensive responses
-
-### 4. Scoring
-- Multiply severity score by the threshold for the compliance category
-- Final Grade = rounded result to two decimal places
-
-### 5. Refusal Handling
-- If the **computed Grade** is less than the **threshold**, then refuse with Grade: `0.00/1`
-- Provide refusal rationale in that case
-
-### 6. Rephrase
-Provide a corrected version of the input that would pass all compliance checks using only facts from the sample documents.
+If severity = High **and** Grade < Threshold, refuse with Grade `0.00/1` and provide a brief refusal rationale.
 
 ## Output Format
 
-> **Note**: Use exactly these headings in your response. Do not add extra sections or text.
+### Problem
+<Short summary of what’s non-compliant in the input prompt —or “No compliance issue detected.”>
 
-### Reasoning
-1. [Step 1]
-2. [Step 2]
-...
+### Why It Failed
+<Explanation of which clause was violated and how it contradicts the documents —or “Prompt meets all compliance requirements.”>
 
-### Summarization
-[Concise summary of overall compliance status, grounded in sample documents]
+### What To Fix
+<Brief actionable fix — or “No fixes necessary.”>
 
-### Recommendations
-1. [Recommendation 1]
-2. [Recommendation 2]
-...
+### Prompt Rephrase
+<Only if failed: rewrite the input so that it fully complies>
 
-### Insights
-1. [Insight 1]
-2. [Insight 2]
-...
+### Compliance ID and Name
+`{{id}}` – {{name}}
 
 ### Grade
 Score: `x.xx/1`  
 Threshold: `{threshold}`  
-Result: Passed / Failed (based on threshold)
-
-### Critical Compliance Concern
-[Category with lowest score or highest severity]
-
-### Required Mitigation
-[Immediate steps to remediate, referencing sample documents]
-
-### Rephrase Prompt
-[Rewritten input that passes all checks, grounded in sample documents]
+Result: Passed / Failed

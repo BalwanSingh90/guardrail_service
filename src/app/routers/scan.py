@@ -1,20 +1,31 @@
 """
-Scan Router Module
+scan_router.py – FastAPI router for /scan
+Optimised to minimise Assistants latency & network calls
 
-This module implements the FastAPI router for compliance scanning endpoints.
-It handles the processing of compliance scan requests, including document analysis,
-LLM-based evaluation, and result aggregation. The module manages parallel processing
-of multiple compliance checks and provides detailed logging of the entire process.
+Changes vs previous revision
+----------------------------
+✓ Each compliance component now triggers ONE Assistants call (run-stream)  
+  we pass the user prompt inside `additional_messages` instead of adding a
+    separate message first.
+✓ Total calls per /scan request: 1 (thread) + N (compliances).
+
+Requires
+--------
+openai>=1.13.3 (Azure extension), fastapi, pydantic v1, etc.
+project-local: src.app.core.*, src.app.models.*, src.app.services.*
 """
+from __future__ import annotations
 
 import asyncio
+import json
+import os
+import re
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from functools import lru_cache
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
-from langchain_openai import AzureChatOpenAI
+from openai import AzureOpenAI
 
 from src.app.core.config import Settings
 from src.app.core.logging import get_logger
@@ -29,171 +40,187 @@ from src.app.services.compliance_service import load_compliances
 from src.app.services.parser import parse_evaluation
 
 router = APIRouter(prefix="/scan", tags=["scan"])
-logger = get_logger(__name__)
 settings = Settings()
+logger = get_logger(__name__)
 
-# Initialization on startup
-logger.info("Initializing scan router components...")
-
-# Preload evaluation templates
-templates: Dict[str, str] = {}
-for key in ("compliance_eval", "compliance_eval_with_docs"):
-    path = settings.get_template_path(key)
-    templates[key] = path.read_text(encoding="utf-8")
-EVAL_TEMPLATE = templates["compliance_eval"]
-EVAL_TEMPLATE_DOCUMENTS = templates["compliance_eval_with_docs"]
-
-# Initialize Azure OpenAI client
-llm = AzureChatOpenAI(
+client = AzureOpenAI(
     api_key=settings.azure_api_key,
     azure_endpoint=str(settings.azure_endpoint),
-    api_version=settings.azure_api_version,
-    deployment_name=settings.azure_deployment,
-    temperature=settings.llm_temperature,
-    max_tokens=settings.llm_max_tokens,
+    api_version="2024-05-01-preview",  # Assistants preview
 )
-logger.info("AzureChatOpenAI client initialized")
+DEPLOYMENT = settings.azure_deployment
 
-
-def _init_compliance_definitions(use_case: str):
-    """
-    Load compliance definitions from YAML based on the use case.
-
-    Sets settings.compliances_file to point to the correct rules file, then calls load_compliances().
-    """
-    file_path = settings.get_compliance_file(use_case)
-    return load_compliances(file_path)
-
-def build_filled_template(
-    template: str,
-    comp: Any,
-    req: ScanRequest,
-    docs_text: str,
-    task_header: str
-) -> str:
-    """
-    Replace placeholders in the evaluation template, including injecting the task header.
-    """
-    user_input = req.prompt.strip() or "[EMPTY PROMPT PROVIDED]"
-    filled = (
-        template
-        .replace("{task}", task_header)
-        .replace("{compliance_description}", comp.description)
-        .replace("{threshold}", str(comp.threshold))
-        .replace("{user_input}", user_input)
+@lru_cache(maxsize=1)
+def get_assistant_id() -> str:
+    assistant = client.beta.assistants.create(
+        model=DEPLOYMENT,
+        instructions=(
+            "You are an AI compliance evaluator. "
+            "Follow the instructions carefully and reply only in the requested format."
+        ),
+        tools=[],
+        temperature=settings.llm_temperature,
+        top_p=1,
     )
-    if "{document_context}" in template:
-        filled = filled.replace("{document_context}", docs_text or "No documents provided")
-    return filled
+    logger.info("Assistants: using assistant %s", assistant.id)
+    return assistant.id
 
+templates: Dict[str, str] = {
+    k: settings.get_template_path(k).read_text("utf-8")
+    for k in ("compliance_eval", "compliance_eval_with_docs")
+}
+EVAL_TEMPLATE = templates["compliance_eval"]
+EVAL_TEMPLATE_DOCS = templates["compliance_eval_with_docs"]
+
+os.makedirs(settings.log_dir, exist_ok=True)
+
+def _bullets(text: str) -> str:
+    parts = re.split(r"[\.\n]+", text)
+    return "\n".join(f"- {p.strip()}" for p in parts if p.strip())
+
+def _docs_block(docs: List[str]) -> str:
+    if not docs:
+        return "No documents provided"
+    return "\n\n".join(f"```text\n{d.strip()}\n```" for d in docs)
+
+def build_prompt(template: str, comp: Any, req: ScanRequest, header: str) -> str:
+    vars = {
+        "task": header,
+        "user_input": req.prompt.strip() or "[EMPTY PROMPT PROVIDED]",
+        "document_context": _docs_block(req.documents),
+        "compliance_prompt": comp.prompt,
+        "compliance_name": comp.name,
+        "compliance_description": _bullets(comp.description),
+        "threshold": comp.threshold,
+    }
+    return template.format(**vars)
+
+def _blocks_to_text(blocks) -> str:
+    """Flatten TextDeltaBlock[] → str (works with old & new SDK)."""
+    out: list[str] = []
+    for blk in blocks:
+        if getattr(blk, "text", None) is not None:
+            val = getattr(blk.text, "value", "")
+            if isinstance(val, str):
+                out.append(val)
+            continue
+        val = getattr(blk, "value", None)
+        if isinstance(val, str):
+            out.append(val)
+    return "".join(out)
+
+def _assistant_stream(prompt: str, thread_id: str) -> str:
+    assistant_id = get_assistant_id()
+
+    # SINGLE API call per component: create run & stream, injecting the prompt
+    with client.beta.threads.runs.create_and_stream(
+        thread_id=thread_id,
+        assistant_id=assistant_id,
+        additional_messages=[{"role": "user", "content": prompt}],
+    ) as mgr:
+
+        iterator = (
+            mgr.events() if hasattr(mgr, "events")
+            else mgr.iter_events() if hasattr(mgr, "iter_events")
+            else mgr
+        )
+
+        chunks: list[str] = []
+        for ev in iterator:
+            if ev.event != "thread.message.delta":
+                continue
+            content = getattr(ev.data.delta, "content", None)
+            if not content:
+                continue
+            if isinstance(content, list):
+                chunks.append(_blocks_to_text(content))
+            elif isinstance(content, str):
+                chunks.append(content)
+
+        return "".join(chunks).strip()
+
+async def run_assistant(prompt: str, thread_id: str) -> str:
+    return await asyncio.to_thread(_assistant_stream, prompt, thread_id)
 
 @router.post("/", response_model=ScanResponse)
 async def scan_compliance(
     req: ScanRequest,
     request: Request,
-    use_case_id: Optional[str] = Query(
-        None,
-        description="Use case identifier for compliance evaluation"
-    )
+    use_case_id: Optional[str] = Query(None),
 ) -> ScanResponse:
-    """
-    Endpoint to scan input against compliance definitions for a given use case.
-    If use_case_id is not provided, defaults to the value in .env (DEFAULT_USE_CASE).
-    """
-    effective_use_case = use_case_id or settings.default_use_case
-    request_id = str(uuid.uuid4())
-    req_logger = RequestLogger(request_id)
-    logger.info(f"Processing request {request_id} for use case {effective_use_case}")
+    use_case = use_case_id or settings.default_use_case
+    req_id = str(uuid.uuid4())
+    RequestLogger(req_id)
+    logger.info("[%s] /scan – use-case: %s", req_id, use_case)
 
-    # Load compliance definitions
     try:
-        compliances = _init_compliance_definitions(effective_use_case)
-        logger.info(f"Loaded {len(compliances)} compliance definitions")
+        compliances = load_compliances(settings.get_compliance_file(use_case))
     except ValueError as exc:
-        logger.error(f"Invalid use case: {effective_use_case}")
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(400, detail=str(exc))
 
-    # Prepare the task header
-    task_header = settings.get_task_template(effective_use_case)
-
-    # Validate documents
     if req.documents and len(req.documents) > settings.max_documents:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Too many documents; max allowed: {settings.max_documents}"
-        )
+        raise HTTPException(400, detail=f"Too many documents (max {settings.max_documents})")
 
-    req_logger.log_stage("request_received", {
-        "prompt": req.prompt,
-        "documents": req.documents,
-        "use_case": effective_use_case,
-        "client": request.client.host if request.client else "unknown"
-    })
+    header = settings.get_task_template(use_case)
 
-    # Combine documents
-    docs_text = ""
-    if req.documents and req.documents[0]:
-        docs_text = "\n---\n".join(req.documents)
+    thread = client.beta.threads.create()  # one thread reused per request
 
-    async def eval_one(comp) -> Tuple[str, str]:
-        # Select template
-        base_tpl = EVAL_TEMPLATE_DOCUMENTS if docs_text else EVAL_TEMPLATE
-        # Fill in all placeholders, including the dynamic task header
-        filled = build_filled_template(base_tpl, comp, req, docs_text, task_header)
-
-        vars = ["user_input"] + (["documents"] if docs_text else [])
-        prompt_obj = PromptTemplate(input_variables=vars, template=filled)
-        params = {"user_input": req.prompt.strip()}
-        if docs_text:
-            params["documents"] = docs_text
-
-        raw = await asyncio.wait_for(
-            LLMChain(llm=llm, prompt=prompt_obj).arun(**params),
-            timeout=settings.llm_timeout
-        )
-        return raw, comp.id
-
-    # Run checks
-    tasks = [eval_one(c) for c in compliances]
-    logger.info(f"Launching {len(tasks)} compliance checks")
-    raw_results = await asyncio.gather(*tasks)
-
-    # Process results
     detailed: Dict[str, ComplianceResult] = {}
-    failed_ids: List[str] = []
-    for raw_text, comp_id in raw_results:
-        comp = next(c for c in compliances if c.id == comp_id)
-        parsed = parse_evaluation(raw_text)
-        score = float(parsed.get("grade", "0.00/1").split("/")[0])
-        passed = score >= comp.threshold
+    failures: List[str] = []
+    log_blob: Dict[str, Any] = {
+        "request_id": req_id,
+        "use_case_id": use_case,
+        "input_prompt": req.prompt,
+        "documents": req.documents,
+        "results": [],
+    }
+
+    for comp in compliances:  # sequential to respect rate-limits
+        template = EVAL_TEMPLATE_DOCS if req.documents else EVAL_TEMPLATE
+        filled = build_prompt(template, comp, req, header)
+
+        raw_reply = await run_assistant(filled, thread.id)
+
+        parsed = parse_evaluation(raw_reply)
+        ratio = float(parsed.get("grade", {}).get("score_ratio") or 0.0)
+        passed = ratio >= comp.threshold
 
         section = ParsedSection(
-            reasoning=parsed.get("reasoning"),
-            summarization=parsed.get("summarization"),
-            recommendations=parsed.get("recommendations"),
-            insights=parsed.get("insights"),
-            grade=parsed.get("grade"),
-            critical_compliance_concern=parsed.get("critical_compliance_concern"),
-            required_mitigation=parsed.get("required_mitigation"),
+            problem=parsed.get("problem"),
+            why_it_failed=parsed.get("why_it_failed"),
+            what_to_fix=parsed.get("what_to_fix"),
             rephrase_prompt=parsed.get("rephrase_prompt"),
+            compliance_id_and_name=parsed.get("compliance_id_and_name"),
+            grade=str(ratio),
         )
-
-        result = ComplianceResult(
+        detailed[comp.id] = ComplianceResult(
             name=comp.name,
             description=comp.description,
-            raw_output=raw_text,
             parsed=section,
             threshold=comp.threshold,
-            passed=passed
+            passed=passed,
         )
-        detailed[comp_id] = result
+
+        log_blob["results"].append(
+            {
+                "compliance_id": comp.id,
+                "name": comp.name,
+                "description": comp.description,
+                "threshold": comp.threshold,
+                "grade": ratio,
+                "passed": passed,
+                "filled_prompt": filled,
+                "raw_llm_output": raw_reply,
+                "parsed": section.dict(),
+            }
+        )
+
         if not passed:
-            failed_ids.append(comp_id)
-            logger.warning(f"Compliance failed: {comp.id}")
-        req_logger.log_stage(f"result_{comp_id}", result.dict())
+            failures.append(comp.id)
 
-    rephrase = req.prompt if not failed_ids else None
-    req_logger.log_stage("final", {"failed_ids": failed_ids})
-    logger.info(f"Completed request {request_id}")
+    path = os.path.join(settings.log_dir, f"{req_id}.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(log_blob, fh, indent=2)
+    logger.info("[%s] log saved → %s", req_id, path)
 
-    return ScanResponse(detailed=detailed, rephrased_prompt=rephrase)
+    return ScanResponse(detailed=detailed, rephrased_prompt=None if failures else req.prompt)

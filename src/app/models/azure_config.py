@@ -9,8 +9,8 @@ validation and type checking of configuration parameters.
 """
 
 
-from pydantic import AnyUrl, Field, field_validator
-from pydantic_settings import BaseModel, BaseSettings
+from pydantic import AnyUrl
+from pydantic_settings import BaseModel
 
 from ..core.logging import get_logger
 

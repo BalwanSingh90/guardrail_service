@@ -18,6 +18,7 @@ dependencies = [
     "ruff>=0.11.12",
     "isort>=6.0.1",
     "yamllint>=1.37.1",
+    "langgraph>=0.4.8",
 ]
 
 [project.optional-dependencies]

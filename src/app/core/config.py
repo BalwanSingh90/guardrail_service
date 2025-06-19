@@ -8,7 +8,7 @@ All configuration values can be overridden using environment variables or a .env
 """
 
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional
 
 from pydantic import AnyUrl, Field, field_validator
 from pydantic_settings import BaseSettings
@@ -41,7 +41,7 @@ class Settings(BaseSettings):
             "file": "azure_ccc_compliances.yaml",
             "task_template": (
                 "Your job is to analyze this system prompt against the CCC guidelines and other compliance rules, flag any violations, and—if it fails—suggest a compliant rephrasing. \n"
-                "Use the **Compliance Rule Description** below to drive your analysis:"  
+                "Use the **Compliance Rule Description** below to drive your analysis:"
             )
         }
     }
@@ -53,10 +53,72 @@ class Settings(BaseSettings):
     azure_api_version: str = Field("2024-02-15-preview", alias="AZURE_OPENAI_API_VERSION", env="AZURE_OPENAI_API_VERSION")
 
     # LLM Configuration
-    llm_temperature: float = Field(0.7, alias="LLM_TEMPERATURE", env="LLM_TEMPERATURE", ge=0.0, le=1.0)
-    llm_max_tokens: Optional[int] = Field(None, alias="LLM_MAX_TOKENS", env="LLM_MAX_TOKENS", gt=0)
-    llm_timeout: int = Field(60, alias="LLM_TIMEOUT", env="LLM_TIMEOUT", gt=0)
+    llm_temperature: float = Field(
+        0.01,
+        alias="LLM_TEMPERATURE",
+        env="LLM_TEMPERATURE",
+        ge=0.0,
+        le=1.0,
+        description="Controls randomness in output (0 = deterministic, 1 = more creative)"
+    )
 
+    llm_top_p: float = Field(
+        0.95,
+        alias="LLM_TOP_P",
+        env="LLM_TOP_P",
+        ge=0.0,
+        le=1.0,
+        description="Controls nucleus sampling; lower values = more focused outputs"
+    )
+
+    llm_frequency_penalty: float = Field(
+        0.0,
+        alias="LLM_FREQUENCY_PENALTY",
+        env="LLM_FREQUENCY_PENALTY",
+        ge=0.0,
+        le=1.0,
+        description="Penalizes repeating tokens"
+    )
+
+    llm_presence_penalty: float = Field(
+        0.0,
+        alias="LLM_PRESENCE_PENALTY",
+        env="LLM_PRESENCE_PENALTY",
+        ge=0.0,
+        le=1.0,
+        description="Encourages introducing new topics"
+    )
+
+    llm_max_tokens: Optional[int] = Field(
+        800,
+        alias="LLM_MAX_TOKENS",
+        env="LLM_MAX_TOKENS",
+        gt=0,
+        description="Maximum number of tokens to generate"
+    )
+
+    llm_stop: Optional[List[str]] = Field(
+        default_factory=list,
+        alias="LLM_STOP",
+        env="LLM_STOP",
+        description="List of stop sequences to end generation"
+    )
+
+    llm_timeout: int = Field(
+        60,
+        alias="LLM_TIMEOUT",
+        env="LLM_TIMEOUT",
+        gt=0,
+        description="Maximum timeout in seconds for the LLM response"
+    )
+
+    llm_past_messages_to_include: Optional[int] = Field(
+        10,
+        alias="LLM_PAST_MESSAGES_TO_INCLUDE",
+        env="LLM_PAST_MESSAGES_TO_INCLUDE",
+        ge=0,
+        description="Number of past messages to include in chat context (if using memory)"
+    )
     # Template Configuration
     template_dir: str = Field("src/app/templates", alias="TEMPLATE_DIR", env="TEMPLATE_DIR")
     template_names: Dict[str, str] = Field(

@@ -1,178 +1,162 @@
 # src/app/routers/aggregation_router.py
+"""
+Aggregates the individual compliance-check failures into a single
+human-friendly summary, recommendations map, and (if needed) a re-phrased
+prompt that should pass all compliances on re-scan.
+"""
+from __future__ import annotations
 
 import json
+import re
 import uuid
 from json import JSONDecodeError
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain_openai import AzureChatOpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
 
 from src.app.core.config import Settings
 from src.app.core.logging import get_logger
 from src.app.models.request_logger import RequestLogger
 from src.app.services.compliance_service import load_compliances
-from src.app.services.parser import parse_evaluation
 
-logger = get_logger(__name__)
+# ──────────────────────────── setup ──────────────────────────────────
+logger   = get_logger(__name__)
 settings = Settings()
-router = APIRouter(prefix="/aggregate", tags=["aggregation"])
+router   = APIRouter(prefix="/aggregate", tags=["aggregation"])
 
-# Preload aggregator template
-template_path = settings.get_template_path("aggregator")
-AGG_TEMPLATE = template_path.read_text(encoding="utf-8")
-logger.info("Aggregator template loaded from %s", template_path)
+AGG_TEMPLATE = settings.get_template_path("aggregator").read_text("utf-8")
+logger.info("Aggregator template loaded")
 
-# Initialize LLM client
-llm = AzureChatOpenAI(
-    api_key=settings.azure_api_key,
-    azure_endpoint=str(settings.azure_endpoint),
-    api_version=settings.azure_api_version,
+# One global AzureChatOpenAI client – re-used for every request
+_llm_client = AzureChatOpenAI(
+    api_key        = settings.azure_api_key,
+    azure_endpoint = str(settings.azure_endpoint),
+    api_version    = settings.azure_api_version,
     deployment_name=settings.azure_deployment,
-    temperature=settings.llm_temperature,
-    max_tokens=settings.llm_max_tokens,
+    temperature    = settings.llm_temperature,
+    max_tokens     = settings.llm_max_tokens,
+    frequency_penalty=settings.llm_frequency_penalty,
+    presence_penalty =settings.llm_presence_penalty,
+    timeout        = 60,                              # seconds
+    # force JSON output (Azure supports the OpenAI 1106 JSON mode)
+    model_kwargs   = {"response_format": {"type": "json_object"}},
 )
-logger.info("AzureChatOpenAI client initialized for aggregation")
+_AGG_CHAIN = LLMChain(
+    llm   = _llm_client,
+    prompt= PromptTemplate(
+        template       = AGG_TEMPLATE,
+        input_variables= ["failed_json", "original_prompt"],
+    ),
+)
+logger.info("Aggregator LLMChain initialised")
 
-
+# ────────────────────────── Pydantic I/O ────────────────────────────
 class AggregationRequest(BaseModel):
     failed_json: Dict[str, Any]
     original_prompt: str
 
-
 class AggregationResponse(BaseModel):
-    aggregated_summary: str
-    recommendations: Dict[str, Any]
-    rephrased_prompt: Optional[str]
+    aggregated_summary: str = Field(..., description="Plain-text roll-up")
+    recommendations: Dict[str, Any] = Field(
+        ..., description="Mapping cid → list[str] of concrete fixes"
+    )
+    rephrased_prompt: str = Field(..., description="Prompt expected to pass")
 
+    # Ensure a non-empty prompt so callers never get `null`
+    @validator("rephrased_prompt")
+    def _non_empty(cls, v: str) -> str:
+        return v.strip() or "<NO-PROMPT-RETURNED>"
 
+# ───────────────────────── helper utils ─────────────────────────────
+_JSON_RE = re.compile(r"\{[\s\S]*\}", re.DOTALL)
+
+def _first_json_block(text: str) -> str:
+    """Return the *first* {...} block – raises if none found."""
+    m = _JSON_RE.search(text)
+    if not m:
+        raise JSONDecodeError("No JSON object found", text, 0)
+    return m.group(0)
+
+# ──────────────────────────── endpoint ──────────────────────────────
 @router.post("/results", response_model=AggregationResponse)
 async def aggregate_compliance(
     req: AggregationRequest,
     request: Request,
-    use_case_id: Optional[str] = Query(
-        None, description="Use case identifier for compliance aggregation"
-    )
+    use_case_id: Optional[str] = Query(None),
 ) -> AggregationResponse:
-    # Determine use case
-    effective_use_case = use_case_id or settings.default_use_case
+    # ── request bookkeeping ─────────────────────────────────────────
     req_id = request.headers.get("x-request-id") or str(uuid.uuid4())
-    req_logger = RequestLogger(req_id)
-    logger.info("Aggregation request %s for use case %s", req_id, effective_use_case)
+    log    = RequestLogger(req_id)
+    log.log_stage("aggregation_request_received", req.dict())
 
-    # Load compliance definitions per use case
-    try:
-        # override the settings file then call loader
-        file_path = settings.get_compliance_file(effective_use_case)
-        compliances = load_compliances(file_path)
-    except ValueError as e:
-        logger.error("Invalid use case: %s", effective_use_case)
-        raise HTTPException(status_code=400, detail=str(e))
+    use_case   = use_case_id or settings.default_use_case
+    comp_path  = settings.get_compliance_file(use_case)
+    compliances= load_compliances(comp_path)
+    valid_ids  = {c.id for c in compliances}
 
-    failed = req.failed_json
-
-    # Validate IDs
-    valid_ids = {c.id for c in compliances}
-    unknown = [cid for cid in failed if cid not in valid_ids]
+    unknown = [cid for cid in req.failed_json if cid not in valid_ids]
     if unknown:
-        logger.error("Unknown compliance IDs: %s", unknown)
-        raise HTTPException(400, f"Unknown compliance IDs: {unknown}")
+        raise HTTPException(400, detail=f"Unknown compliance IDs: {unknown}")
 
-    # Enrich with description & threshold
-    enriched: Dict[str, Any] = {}
-    for comp in compliances:
-        if comp.id in failed:
-            entry = failed[comp.id]
-            enriched[comp.id] = {
-                **entry,
-                "description": comp.description,
-                "threshold": comp.threshold,
-                "name":comp.name
-            }
+    # Enrich failures with descriptions / threshold for the LLM
+    enriched = {
+        cid: {
+            **req.failed_json[cid],
+            "description": next(c.description for c in compliances if c.id == cid),
+            "threshold"  : next(c.threshold   for c in compliances if c.id == cid),
+            "name"       : next(c.name        for c in compliances if c.id == cid),
+        }
+        for cid in req.failed_json
+    }
     failed_json_str = json.dumps(enriched, indent=2)
+    log.log_stage("enriched_failed_json", enriched)
 
-    req_logger.log_stage("aggregation_request_received", {
-        "failed_ids": list(enriched.keys()),
-        "original_prompt": req.original_prompt
-    })
-
-    # Prepare prompt
-    prompt = PromptTemplate(
-        input_variables=["failed_json", "original_prompt"],
-        template=AGG_TEMPLATE
-    )
-    
+    # ── LLM call ────────────────────────────────────────────────────
     try:
-        filled = prompt.format(
-            failed_json=failed_json_str,
-            original_prompt=req.original_prompt
+        raw_output: str = await _AGG_CHAIN.arun(
+            failed_json     = failed_json_str,
+            original_prompt = req.original_prompt,
         )
-        req_logger.log_stage("filled_aggregator_template", {"filled": filled})
-    except Exception as e:
-        logger.error("Error formatting aggregator template: %s", e, exc_info=True)
-        raise HTTPException(500, "Template formatting failed")
+        log.log_stage("llm_raw_output", raw_output)
+    except Exception:
+        logger.exception("Aggregation LLM call failed")
+        raise HTTPException(502, "Failed to aggregate compliance feedback")
 
-    # Call LLM
-    chain = LLMChain(llm=llm, prompt=prompt)
+    # ── JSON parse ─────────────────────────────────────────────────
     try:
-        raw_output = await chain.arun(
-            failed_json=failed_json_str,
-            original_prompt=req.original_prompt
-        )
-        req_logger.log_stage("llm_raw_output", {"raw": raw_output})
-    except Exception as e:
-        logger.error("Aggregation LLM call failed: %s", e, exc_info=True)
-        raise HTTPException(502, "Failed to generate aggregated output")
-
-    # Debug log
-    logger.warning("AGGREGATOR RAW OUTPUT:\n%s", raw_output)
-
-    # Parse JSON
-    try:
-        result = json.loads(raw_output)
+        payload = json.loads(_first_json_block(raw_output))
     except JSONDecodeError:
-        logger.error("Aggregation LLM returned invalid JSON: %r", raw_output)
+        logger.error("Invalid JSON from aggregator: %s", raw_output)
         raise HTTPException(
-            status_code=502,
-            detail="Aggregation service returned invalid JSON. Please check the aggregator template or LLM output."
-        )
-    except Exception as e:
-        logger.error("Unexpected error parsing aggregation result: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="Unexpected error parsing aggregation result."
+            502,
+            "Aggregator returned invalid JSON. "
+            "Check template or increase model temperature."
         )
 
-    # Extract aggregated summary
-    if "Aggregated Summary" not in result:
-        logger.error("Missing 'Aggregated Summary' in output: %s", result)
-        raise HTTPException(
-            status_code=502,
-            detail="Aggregation result JSON is missing 'Aggregated Summary'"
-        )
-    aggregated_summary = result["Aggregated Summary"]
+    # Expected keys – tolerate different capitalisation
+    agg_summary = payload.get("aggregated_summary") \
+              or  payload.get("Aggregated Summary") \
+              or  payload.get("summary") \
+              or  ""
+    recs        = payload.get("recommendations") \
+              or payload.get("Recommendations") \
+              or {}
+    rephrase    = payload.get("rephrased_prompt") \
+              or payload.get("Rephrase Prompt") \
+              or req.original_prompt
 
-    # Rebuild recommendations map with original failure IDs
-    raw_recs = result.get("Recommendations", {})
-    recommendations: Dict[str, Any] = {}
-    for cid in req.failed_json.keys():
-        recommendations[cid] = raw_recs.get(cid, [])
-
-    # Ensure rephrase relates to original prompt
-    rephrased_prompt = result.get("Rephrase Prompt") or req.original_prompt
-
-    req_logger.log_stage("parsed_aggregation_result", {
-        "Aggregated Summary": aggregated_summary,
-        "Recommendations": recommendations,
-        "Rephrase Prompt": rephrased_prompt
+    log.log_stage("parsed_aggregation_result", {
+        "aggregated_summary": agg_summary,
+        "recommendations"   : recs,
+        "rephrased_prompt"  : rephrase,
     })
 
     return AggregationResponse(
-        aggregated_summary=aggregated_summary,
-        recommendations=recommendations,
-        rephrased_prompt=rephrased_prompt
+        aggregated_summary = agg_summary.strip(),
+        recommendations    = recs,
+        rephrased_prompt   = rephrase.strip(),
     )

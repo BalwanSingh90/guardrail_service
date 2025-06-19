@@ -67,7 +67,7 @@ class RequestLogger:
         self.log_data: dict[str, Any] = {
             "request_id": request_id,
             "timestamp": datetime.now().isoformat(),
-            "stages": []  
+            "stages": []
         }
 
         # Create initial log file
