@@ -9,7 +9,7 @@ validation and type checking of configuration parameters.
 """
 
 
-from pydantic import AnyUrl
+from pydantic import AnyUrl, model_validator
 from pydantic_settings import BaseModel
 
 from ..core.logging import get_logger
@@ -37,27 +37,12 @@ class AzureConfig(BaseModel):
     deployment: str  # Deployment identifier
     api_version: str  # API version to use
 
-    @validator("endpoint", pre=True, always=True)
-    def ensure_trailing_slash(self, v: AnyUrl) -> str:
-        """
-        Validates and ensures the endpoint URL has a trailing slash.
-
-        Args:
-            v (AnyUrl): The endpoint URL to validate
-
-        Returns:
-            str: The endpoint URL with a trailing slash
-
-        Note:
-            This validator runs before other validations (pre=True) and always
-            ensures the URL ends with a trailing slash for consistency.
-        """
-        text = str(v)
-        if not text.endswith("/"):
-            logger.debug(f"Adding trailing slash to endpoint URL: {text}")
-            return text + "/"
-        logger.debug(f"Endpoint URL already has trailing slash: {text}")
-        return text
+    @model_validator(mode="before")
+    @classmethod
+    def add_slash_to_endpoint(cls, data: dict) -> dict:
+        if "endpoint" in data and not str(data["endpoint"]).endswith("/"):
+            data["endpoint"] = str(data["endpoint"]) + "/"
+        return data
 
     class Config:
         """Pydantic model configuration."""

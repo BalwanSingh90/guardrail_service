@@ -10,13 +10,13 @@ import json
 import re
 import uuid
 from json import JSONDecodeError
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain_openai import AzureChatOpenAI
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, model_validator
 
 from src.app.core.config import Settings
 from src.app.core.logging import get_logger
@@ -31,7 +31,7 @@ router = APIRouter(prefix="/aggregate", tags=["aggregation"])
 AGG_TEMPLATE = settings.get_template_path("aggregator").read_text("utf-8")
 logger.info("Aggregator template loaded")
 
-# One global AzureChatOpenAI client – re-used for every request
+# One global AzureChatOpenAI client - re-used for every request
 _llm_client = AzureChatOpenAI(
     api_key=settings.azure_api_key,
     azure_endpoint=str(settings.azure_endpoint),
@@ -57,20 +57,21 @@ logger.info("Aggregator LLMChain initialised")
 
 # ────────────────────────── Pydantic I/O ────────────────────────────
 class AggregationRequest(BaseModel):
-    failed_json: Dict[str, Any]
+    failed_json: dict[str, Any]
     original_prompt: str
 
 
 class AggregationResponse(BaseModel):
     aggregated_summary: str = Field(..., description="Plain-text roll-up")
-    recommendations: Dict[str, Any] = Field(
+    recommendations: dict[str, Any] = Field(
         ..., description="Mapping cid → list[str] of concrete fixes"
     )
     rephrased_prompt: str = Field(..., description="Prompt expected to pass")
 
     # Ensure a non-empty prompt so callers never get `null`
-    @validator("rephrased_prompt")
-    def _non_empty(cls, v: str) -> str:
+    @model_validator(mode="before")
+    @classmethod    
+    def _non_empty(self, v: str) -> str:
         return v.strip() or "<NO-PROMPT-RETURNED>"
 
 
@@ -79,7 +80,7 @@ _JSON_RE = re.compile(r"\{[\s\S]*\}", re.DOTALL)
 
 
 def _first_json_block(text: str) -> str:
-    """Return the *first* {...} block – raises if none found."""
+    """Return the *first* {...} block - raises if none found."""
     m = _JSON_RE.search(text)
     if not m:
         raise JSONDecodeError("No JSON object found", text, 0)
@@ -91,7 +92,7 @@ def _first_json_block(text: str) -> str:
 async def aggregate_compliance(
     req: AggregationRequest,
     request: Request,
-    use_case_id: Optional[str] = Query(None),
+    use_case_id: str | None = Query(None),
 ) -> AggregationResponse:
     # ── request bookkeeping ─────────────────────────────────────────
     req_id = request.headers.get("x-request-id") or str(uuid.uuid4())
@@ -127,22 +128,17 @@ async def aggregate_compliance(
             original_prompt=req.original_prompt,
         )
         log.log_stage("llm_raw_output", raw_output)
-    except Exception:
+    except Exception as exc:
         logger.exception("Aggregation LLM call failed")
-        raise HTTPException(502, "Failed to aggregate compliance feedback")
+        raise HTTPException(502, "Failed to aggregate compliance feedback") from exc
 
     # ── JSON parse ─────────────────────────────────────────────────
     try:
         payload = json.loads(_first_json_block(raw_output))
-    except JSONDecodeError:
-        logger.error("Invalid JSON from aggregator: %s", raw_output)
-        raise HTTPException(
-            502,
-            "Aggregator returned invalid JSON. "
-            "Check template or increase model temperature.",
-        )
+    except ValueError as exc:
+        raise HTTPException(400, detail="Invalid input") from exc
 
-    # Expected keys – tolerate different capitalisation
+    # Expected keys - tolerate different capitalisation
     agg_summary = (
         payload.get("aggregated_summary")
         or payload.get("Aggregated Summary")

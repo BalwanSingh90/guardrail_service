@@ -98,7 +98,7 @@ class ScanResponse(BaseModel):
                             "why_it_failed": "No direct quote from source documents was used.",
                             "explain": "Only refer to approved documents explicitly.",
                             "rephrase_prompt": "How do I act according to documented escalation steps?",
-                            "compliance_id_and_name": "PC1 – Grounded Response",
+                            "compliance_id_and_name": "PC1 - Grounded Response",
                             "grade": "0.72/1",
                         },
                         "threshold": 0.9,

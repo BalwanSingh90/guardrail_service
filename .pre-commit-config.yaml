@@ -1,7 +1,7 @@
 repos:
   # 🔹 Custom Hook from your own repo
   - repo: https://github.com/BalwanSingh90/guardrail_service
-    rev: v0.1.0  # 🔁 Tag this version after committing the hook and script
+    rev: v0.1.2
     hooks:
       - id: custom-guardrail-check
 

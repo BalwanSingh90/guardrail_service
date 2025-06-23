@@ -1,5 +1,5 @@
 """
-scan_router.py – FastAPI router for /scan
+scan_router.py - FastAPI router for /scan
 Optimised to minimise Assistants latency & network calls
 
 Changes vs previous revision
@@ -23,12 +23,13 @@ import os
 import re
 import uuid
 from functools import lru_cache
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from openai import AzureOpenAI
 
 from src.app.core.config import Settings
+from src.app.utils.utils import filter_compliances
 from src.app.core.logging import get_logger
 from src.app.models.request_logger import RequestLogger
 from src.app.models.schemas import (
@@ -68,7 +69,7 @@ def get_assistant_id() -> str:
     return assistant.id
 
 
-templates: Dict[str, str] = {
+templates: dict[str, str] = {
     k: settings.get_template_path(k).read_text("utf-8")
     for k in ("compliance_eval", "compliance_eval_with_docs")
 }
@@ -83,7 +84,7 @@ def _bullets(text: str) -> str:
     return "\n".join(f"- {p.strip()}" for p in parts if p.strip())
 
 
-def _docs_block(docs: List[str]) -> str:
+def _docs_block(docs: list[str]) -> str:
     if not docs:
         return "No documents provided"
     return "\n\n".join(f"```text\n{d.strip()}\n```" for d in docs)
@@ -156,17 +157,24 @@ async def run_assistant(prompt: str, thread_id: str) -> str:
 async def scan_compliance(
     req: ScanRequest,
     request: Request,
-    use_case_id: Optional[str] = Query(None),
+    use_case_id: str | None = Query(None),
+    compliance_filter: str | None = Query(None, description="e.g., 'include: PC1, PC2 exclude: PC7'")
 ) -> ScanResponse:
     use_case = use_case_id or settings.default_use_case
     req_id = str(uuid.uuid4())
     RequestLogger(req_id)
-    logger.info("[%s] /scan – use-case: %s", req_id, use_case)
+    logger.info("[%s] /scan - use-case: %s", req_id, use_case)
 
     try:
         compliances = load_compliances(settings.get_compliance_file(use_case))
     except ValueError as exc:
-        raise HTTPException(400, detail=str(exc))
+        raise HTTPException(400, detail=str(exc)) from exc
+    
+    if compliance_filter:
+        compliances = filter_compliances(compliances, compliance_filter)
+
+    if not compliances:
+        raise HTTPException(400, detail="No compliances selected after filtering.")
 
     if req.documents and len(req.documents) > settings.max_documents:
         raise HTTPException(
@@ -177,9 +185,9 @@ async def scan_compliance(
 
     thread = client.beta.threads.create()  # one thread reused per request
 
-    detailed: Dict[str, ComplianceResult] = {}
-    failures: List[str] = []
-    log_blob: Dict[str, Any] = {
+    detailed: dict[str, ComplianceResult] = {}
+    failures: list[str] = []
+    log_blob: dict[str, Any] = {
         "request_id": req_id,
         "use_case_id": use_case,
         "input_prompt": req.prompt,
